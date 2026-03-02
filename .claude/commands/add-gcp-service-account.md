@@ -13,9 +13,10 @@ When adding a new GCP service account (e.g., for a new controller like Cloud Con
 ## Repositories Affected
 
 1. **hypershift** - Core HyperShift project
-2. **cls-backend** - CLS Backend API
-3. **cls-controller** - CLS Controller (HostedCluster template)
-4. **gcp-hcp-cli** - gcphcp CLI tool
+2. **gcp-hcp-infra** - HyperShift operator manifests on management clusters
+3. **cls-backend** - CLS Backend API
+4. **cls-controller** - CLS Controller (HostedCluster template)
+5. **gcp-hcp-cli** - gcphcp CLI tool
 
 ---
 
@@ -75,7 +76,39 @@ Add the new service account definition with required IAM roles:
 
 ---
 
-## Step 3: CLS Backend Model
+## Step 3: Regenerate HyperShift Manifests in gcp-hcp-infra
+
+After Steps 1 and 2 are merged to HyperShift main, regenerate `hypershift.yaml`
+in the infra repo so the management cluster CRDs reflect the new field.
+
+**File generated:** `kustomize/hypershift/hypershift.yaml`
+
+```bash
+cd /path/to/gcp-hcp-infra/kustomize/hypershift
+
+./update.sh
+```
+
+This script:
+1. Builds the HyperShift CLI from source using `podman`
+2. Runs `hypershift install render` with GCP-specific flags
+3. Overwrites `hypershift.yaml` with the updated manifests + CRDs
+
+**Then commit and push** the updated `hypershift.yaml`:
+
+```bash
+git add kustomize/hypershift/hypershift.yaml
+git commit -m "chore: regenerate hypershift.yaml with <field> API addition"
+git push
+```
+
+> **Do not skip this step.** If `hypershift.yaml` is not updated, the management
+> cluster will run with stale CRDs that don't include the new SA field, causing
+> HostedCluster validation to reject the new field silently.
+
+---
+
+## Step 4: CLS Backend Model
 
 **File:** `cls-backend/internal/models/cluster.go`
 
@@ -91,7 +124,7 @@ type WIFServiceAccountsRef struct {
 
 ---
 
-## Step 4: CLS Controller Template
+## Step 5: CLS Controller Template
 
 **File:** `cls-controller/deployments/helm-cls-hypershift-client/templates/controllerconfig.yaml`
 
@@ -110,11 +143,11 @@ workloadIdentity:
 
 ---
 
-## Step 5: gcphcp CLI
+## Step 6: gcphcp CLI
 
 **File:** `gcp-hcp-cli/src/gcphcp/utils/hypershift.py`
 
-### 5a. Add to SERVICE_ACCOUNTS constant:
+### 6a. Add to SERVICE_ACCOUNTS constant:
 
 ```python
 SERVICE_ACCOUNTS = {
@@ -124,7 +157,7 @@ SERVICE_ACCOUNTS = {
 }
 ```
 
-### 5b. Add to iam_config_to_wif_spec function:
+### 6b. Add to iam_config_to_wif_spec function:
 
 ```python
 def iam_config_to_wif_spec(iam_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -149,6 +182,8 @@ After making all changes:
 
 - [ ] `make api` runs successfully in hypershift
 - [ ] `make verify` passes in hypershift
+- [ ] `kustomize/hypershift/update.sh` runs successfully in gcp-hcp-infra
+- [ ] `hypershift.yaml` in gcp-hcp-infra contains the new SA field in the CRD schema
 - [ ] `go build ./...` works in cls-backend
 - [ ] Helm template renders correctly in cls-controller
 - [ ] gcphcp CLI tests pass
@@ -221,7 +256,40 @@ gh pr create --title "feat(gcp): add <ServiceAccount> service account for <Compo
 🤖 Generated with [Claude Code](https://claude.ai/claude-code)"
 ```
 
-### PR 2: CLS Backend (apahim/cls-backend)
+### PR 2: gcp-hcp-infra
+
+```bash
+cd /path/to/gcp-hcp-infra/kustomize/hypershift
+
+# Regenerate from main (see Step 3)
+./update.sh
+
+cd /path/to/gcp-hcp-infra
+
+# Create branch
+git checkout -b add-<service-account>-sa
+
+# Stage changes
+git add kustomize/hypershift/hypershift.yaml
+
+# Commit
+git commit -m "chore: regenerate hypershift.yaml with <field> API addition"
+
+# Push and create PR
+git push -u origin add-<service-account>-sa
+gh pr create --title "chore: regenerate hypershift.yaml with <field> API addition" \
+  --body "## Summary
+Regenerate \`kustomize/hypershift/hypershift.yaml\` to pick up the updated
+CRD schema from hypershift PR: <link>.
+
+The new \`<field>\` SA field on \`GCPServiceAccountsEmails\` would be silently
+rejected by the management cluster without this update.
+
+## Dependencies
+- Requires hypershift PR: <link>"
+```
+
+### PR 3: CLS Backend (apahim/cls-backend)
 
 **Upstream:** `https://github.com/apahim/cls-backend`
 **Your fork:** `https://github.com/<your-username>/cls-backend`
@@ -257,7 +325,7 @@ the new <Component> service account for GCP HyperShift clusters.
 🤖 Generated with [Claude Code](https://claude.ai/claude-code)"
 ```
 
-### PR 3: CLS Controller (apahim/cls-controller)
+### PR 4: CLS Controller (apahim/cls-controller)
 
 **Upstream:** `https://github.com/apahim/cls-controller`
 **Your fork:** `https://github.com/<your-username>/cls-controller`
@@ -295,7 +363,7 @@ Add \`<serviceAccount>\` field to the HostedCluster template's
 🤖 Generated with [Claude Code](https://claude.ai/claude-code)"
 ```
 
-### PR 4: gcphcp CLI (apahim/gcp-hcp-cli)
+### PR 5: gcphcp CLI (apahim/gcp-hcp-cli)
 
 **Upstream:** `https://github.com/apahim/gcp-hcp-cli`
 **Your fork:** `https://github.com/<your-username>/gcp-hcp-cli`
@@ -338,11 +406,12 @@ gh pr create --title "feat: add <service-account> to SERVICE_ACCOUNTS mapping" \
 PRs should be merged in this order to avoid breaking changes:
 
 1. **hypershift** - API and IAM bindings (foundation)
-2. **gcp-hcp-cli** - CLI support (uses hypershift output)
-3. **cls-backend** - Backend model (API contract)
-4. **cls-controller** - Template update (uses backend model)
+2. **gcp-hcp-infra** - Regenerate `hypershift.yaml` CRDs
+3. **gcp-hcp-cli** - CLI support (uses hypershift output)
+4. **cls-backend** - Backend model (API contract)
+5. **cls-controller** - Template update (uses backend model)
 
-**Note:** Steps 2-4 can be merged in parallel if coordinated, but hypershift must be merged first.
+**Note:** Steps 3-5 can be merged in parallel if coordinated, but hypershift and gcp-hcp-infra must be updated first so the management cluster CRDs are in sync.
 
 ---
 

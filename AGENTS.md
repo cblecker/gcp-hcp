@@ -33,7 +33,7 @@ For detailed MCP tool integration examples, see the upstream skill documentation
 
 ## Architecture Skill
 
-The `gcp-hcp:architecture` skill provides architectural context and design decisions for agents working on GCP HCP code. It is auto-invoked when working on GCP platform changes and can be manually invoked with an optional topic filter.
+The `gcp-hcp-architecture` skill provides architectural context and design decisions for agents working on GCP HCP code. It is auto-invoked when working on GCP platform changes and can be manually invoked with an optional topic filter.
 
 Topics: networking, identity, observability, infrastructure, ingress, storage, operators, testing, automation, naming, dns, fleet, incidents, slo.
 

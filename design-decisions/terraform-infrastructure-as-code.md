@@ -76,3 +76,5 @@ The project needs to establish a consistent, repeatable approach for infrastruct
 - Simplified operational procedures through infrastructure automation
 - Enhanced collaboration through shared infrastructure definitions
 - Integration with existing CI/CD and automation toolchains
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — defines Terraform's scope as Lane 1 (foundational GCP infrastructure) and the boundary with ArgoCD/Config Connector (Lane 2).

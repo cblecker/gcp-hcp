@@ -76,3 +76,5 @@ The GCP HCP infrastructure operates private GKE clusters (region and management 
 * The Config Management feature (`google_gke_hub_feature`) is created once in the region module; management clusters reference it via cross-project fleet membership, keeping the fleet topology flat within each region
 * SRE access via Connect Gateway uses standard `gcloud container fleet memberships get-credentials` followed by regular kubectl — no special tooling required
 * Teardown requires disabling Config Management before destroying clusters to prevent Config Sync from reverting deletions
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — Config Sync serves as bootstrap glue between the Terraform (Lane 1) and ArgoCD (Lane 2) swim lanes, not as an ongoing deployment mechanism.

@@ -292,3 +292,5 @@ Atlantis was selected over Terraform Cloud because:
 - [x] Document provides sufficient detail for future reference
 - [x] All placeholder text has been replaced
 - [x] Links to related documentation are included where relevant
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — Atlantis automates Lane 1 (Terraform) infrastructure changes via PR-based plan/apply workflows.

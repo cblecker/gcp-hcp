@@ -231,3 +231,5 @@ data:
    - Document any use of wave +5 (should be rare)
    - Challenge proposed custom wave values - "Can Kubernetes reconcile this?"
    - Require architectural review for non-standard wave values (not -5, 0, or +5)
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — sync waves are a Lane 2 (ArgoCD) construct that orders component deployment within the ArgoCD swim lane.

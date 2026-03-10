@@ -143,3 +143,5 @@ The team will utilize Google-provided Terraform modules where appropriate, ackno
 - Explicit structure reduces cognitive load when navigating infrastructure
 - Compatible with GitOps workflows and CI/CD automation
 - Module repository separation enables clear ownership and development workflows
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — the Terraform code hierarchy maps to Lane 1 (foundational infrastructure), with ArgoCD handling all cluster workloads in Lane 2.

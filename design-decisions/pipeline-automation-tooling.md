@@ -436,3 +436,5 @@ Tekton was selected over Cloud Workflows because:
 - [x] Document provides sufficient detail for future reference
 - [x] All placeholder text has been replaced
 - [x] Links to POC artifacts and related documentation are included where relevant
+
+**See also**: [Deployment Tooling Policy](./deployment-tooling-swim-lanes.md) — Tekton is an automation orchestrator that follows the swim lane definitions when deploying resources, complementing Atlantis (Lane 1) and ArgoCD (Lane 2).

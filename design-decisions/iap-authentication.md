@@ -4,7 +4,7 @@
 
 **Date**: 2026-01-09
 
-**Related**: [GCP-138](https://issues.redhat.com/browse/GCP-138)
+**Related**: [GCP-138](https://redhat.atlassian.net/browse/GCP-138)
 
 ## Decision
 

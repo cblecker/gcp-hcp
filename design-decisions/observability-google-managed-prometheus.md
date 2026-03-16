@@ -194,5 +194,5 @@ The GCP-343 spike deliverables provide detailed implementation guidance:
 ---
 
 **Related Documentation:**
-- Jira Epic: https://issues.redhat.com/browse/GCP-343 - Observability Spike for HCP Monitoring
+- Jira Epic: https://redhat.atlassian.net/browse/GCP-343 - Observability Spike for HCP Monitoring
 - Experiment Repository: [gcp-hcp/experiments/google-managed-prometheus/](https://github.com/openshift-online/gcp-hcp/tree/main/experiments/google-managed-prometheus)

@@ -356,7 +356,7 @@ The `cnrm.cloud.google.com/project-id` annotation on each resource controls whic
 
 ## Next Steps
 
-Implementation stories to be created under [GCP-319](https://issues.redhat.com/browse/GCP-319):
+Implementation stories to be created under [GCP-319](https://redhat.atlassian.net/browse/GCP-319):
 
 1. **Alerting infrastructure Terraform module**: Pub/Sub topic, Eventarc trigger, IAM bindings, API enablement — deployed per project via Terraform during cluster setup
 2. **Recording rule for cluster alertability**: Define `hcp:cluster:alertable` recording rule that evaluates `hypershift_cluster_limited_support_enabled != 1`. All alert policies must join against this recording rule.
@@ -367,11 +367,11 @@ Implementation stories to be created under [GCP-319](https://issues.redhat.com/b
 7. **Cloud Run diagnose-agent deployment**: Terraform module for Cloud Run service with IAM, deployed per project
 8. **Additional alert definitions**: Extend alert coverage to remaining HCP control plane components (kube-controller-manager, cloud-controller-manager, etc.)
 9. **Operational runbooks**: Create runbooks for alert tuning, threshold adjustment, and diagnosis pipeline troubleshooting
-10. **Canary alerts for pipeline validation**: End-to-end validation of the alerting pipeline — [GCP-438](https://issues.redhat.com/browse/GCP-438)
+10. **Canary alerts for pipeline validation**: End-to-end validation of the alerting pipeline — [GCP-438](https://redhat.atlassian.net/browse/GCP-438)
 
 ---
 
 **Related Documentation:**
-- Jira Epic: [GCP-319](https://issues.redhat.com/browse/GCP-319) — Alerting for HCP Control Plane
-- Jira Spike: [GCP-344](https://issues.redhat.com/browse/GCP-344) — Alerting Spike
+- Jira Epic: [GCP-319](https://redhat.atlassian.net/browse/GCP-319) — Alerting for HCP Control Plane
+- Jira Spike: [GCP-344](https://redhat.atlassian.net/browse/GCP-344) — Alerting Spike
 - Observability Platform Decision: [observability-google-managed-prometheus.md](observability-google-managed-prometheus.md)

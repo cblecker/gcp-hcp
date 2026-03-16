@@ -12,16 +12,13 @@
         "-e",
         "JIRA_USERNAME",
         "-e",
-        "JIRA_PERSONAL_TOKEN",
-        "-e",
-        "JIRA_SSL_VERIFY",
+        "JIRA_API_TOKEN",
         "ghcr.io/sooperset/mcp-atlassian:latest"
       ],
       "env": {
-        "JIRA_URL": "https://issues.redhat.com",
+        "JIRA_URL": "https://redhat.atlassian.net",
         "JIRA_USERNAME": "${JIRA_USERNAME}",
-        "JIRA_PERSONAL_TOKEN": "${JIRA_PERSONAL_TOKEN}",
-        "JIRA_SSL_VERIFY": "true"
+        "JIRA_API_TOKEN": "${JIRA_API_TOKEN}"
       }
     }
   }

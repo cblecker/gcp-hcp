@@ -1179,7 +1179,7 @@ h2. Additional Context
 * CEL validation enforces same-project constraint
     """,
     additional_fields={
-        "customfield_12311140": "GCP-315",  # Epic Link
+        "customfield_10014": "GCP-315",  # Epic Link
         "labels": ["api", "gcp-hcp", "ai-generated-jira"],
         "components": [{"name": "Image Registry"}],
         "security": {"name": "Red Hat Employee"}

@@ -7,10 +7,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-cert-controller
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: external-secrets/templates/serviceaccount.yaml
@@ -20,10 +20,10 @@ metadata:
   name: external-secrets
   namespace: external-secrets-system
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: external-secrets/templates/webhook-serviceaccount.yaml
@@ -34,10 +34,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: external-secrets/templates/webhook-secret.yaml
@@ -48,10 +48,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     external-secrets.io/component: webhook
 ---
@@ -1027,6 +1027,7 @@ spec:
                 namespaceSelector:
                   description: |-
                     The labels to select by to find the Namespaces to create the ExternalSecrets in.
+
                     Deprecated: Use NamespaceSelectors instead.
                   properties:
                     matchExpressions:
@@ -1123,6 +1124,7 @@ spec:
                 namespaces:
                   description: |-
                     Choose namespaces by name. This field is ORed with anything that NamespaceSelectors ends up choosing.
+
                     Deprecated: Use NamespaceSelectors instead.
                   items:
                     maxLength: 63
@@ -1856,6 +1858,7 @@ spec:
                 namespaces:
                   description: |-
                     Choose namespaces by name. This field is ORed with anything that NamespaceSelectors ends up choosing.
+
                     Deprecated: Use NamespaceSelectors instead.
                   items:
                     maxLength: 63
@@ -3466,6 +3469,7 @@ spec:
                                             Optional audiences field that will be used to request a temporary Kubernetes service
                                             account token for the service account referenced by `serviceAccountRef`.
                                             Defaults to a single audience `vault` it not specified.
+
                                             Deprecated: use serviceAccountRef.Audiences instead
                                           items:
                                             type: string
@@ -3475,6 +3479,7 @@ spec:
                                             Optional expiration time in seconds that will be used to request a temporary
                                             Kubernetes service account token for the service account referenced by
                                             `serviceAccountRef`.
+
                                             Deprecated: this will be removed in the future.
                                             Defaults to 10 minutes.
                                           format: int64
@@ -5053,96 +5058,6 @@ spec:
                         - akeylessGWApiURL
                         - authSecretRef
                       type: object
-                    alibaba:
-                      description: Alibaba configures this store to sync secrets using Alibaba Cloud provider
-                      properties:
-                        auth:
-                          description: AlibabaAuth contains a secretRef for credentials.
-                          properties:
-                            rrsa:
-                              description: AlibabaRRSAAuth authenticates against Alibaba using RRSA.
-                              properties:
-                                oidcProviderArn:
-                                  type: string
-                                oidcTokenFilePath:
-                                  type: string
-                                roleArn:
-                                  type: string
-                                sessionName:
-                                  type: string
-                              required:
-                                - oidcProviderArn
-                                - oidcTokenFilePath
-                                - roleArn
-                                - sessionName
-                              type: object
-                            secretRef:
-                              description: AlibabaAuthSecretRef holds secret references for Alibaba credentials.
-                              properties:
-                                accessKeyIDSecretRef:
-                                  description: The AccessKeyID is used for authentication
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                                accessKeySecretSecretRef:
-                                  description: The AccessKeySecret is used for authentication
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                              required:
-                                - accessKeyIDSecretRef
-                                - accessKeySecretSecretRef
-                              type: object
-                          type: object
-                        regionID:
-                          description: Alibaba Region to be used for the provider
-                          type: string
-                      required:
-                        - auth
-                        - regionID
-                      type: object
                     aws:
                       description: AWS configures this store to sync secrets using AWS Secret Manager provider
                       properties:
@@ -6353,52 +6268,6 @@ spec:
                         - clientId
                         - clientSecret
                         - tenant
-                      type: object
-                    device42:
-                      description: Device42 configures this store to sync secrets using the Device42 provider
-                      properties:
-                        auth:
-                          description: Auth configures how secret-manager authenticates with a Device42 instance.
-                          properties:
-                            secretRef:
-                              description: Device42SecretRef contains the secret reference for accessing the Device42 instance.
-                              properties:
-                                credentials:
-                                  description: Username / Password is used for authentication.
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                              type: object
-                          required:
-                            - secretRef
-                          type: object
-                        host:
-                          description: URL configures the Device42 instance URL.
-                          type: string
-                      required:
-                        - auth
-                        - host
                       type: object
                     doppler:
                       description: Doppler configures this store to sync secrets using the Doppler provider
@@ -8145,6 +8014,120 @@ spec:
                               type: string
                           type: object
                       type: object
+                    nebiusmysterybox:
+                      description: NebiusMysterybox configures this store to sync secrets using NebiusMysterybox provider
+                      properties:
+                        apiDomain:
+                          description: NebiusMysterybox API endpoint
+                          type: string
+                        auth:
+                          description: Auth defines parameters to authenticate in MysteryBox
+                          properties:
+                            serviceAccountCredsSecretRef:
+                              description: |-
+                                ServiceAccountCreds references a Kubernetes Secret key that contains a JSON
+                                document with service account credentials used to get an IAM token.
+
+                                Expected JSON structure:
+                                {
+                                  "subject-credentials": {
+                                    "alg": "RS256",
+                                    "private-key": "-----BEGIN PRIVATE KEY-----\n<private-key>\n-----END PRIVATE KEY-----\n",
+                                    "kid": "<public-key-id>",
+                                    "iss": "<issuer-service-account-id>",
+                                    "sub": "<subject-service-account-id>"
+                                  }
+                                }
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                            tokenSecretRef:
+                              description: Token authenticates with Nebius Mysterybox by presenting a token.
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                          type: object
+                          x-kubernetes-validations:
+                            - message: either serviceAccountCredsSecretRef or tokenSecretRef must be set
+                              rule: has(self.serviceAccountCredsSecretRef) || has(self.tokenSecretRef)
+                        caProvider:
+                          description: The provider for the CA bundle to use to validate NebiusMysterybox server certificate.
+                          properties:
+                            certSecretRef:
+                              description: |-
+                                SecretKeySelector is a reference to a specific 'key' within a Secret resource.
+                                In some instances, `key` is a required field.
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                          type: object
+                      required:
+                        - apiDomain
+                        - auth
+                      type: object
                     ngrok:
                       description: Ngrok configures this store to sync secrets using the ngrok provider.
                       properties:
@@ -9484,6 +9467,7 @@ spec:
                                         Optional audiences field that will be used to request a temporary Kubernetes service
                                         account token for the service account referenced by `serviceAccountRef`.
                                         Defaults to a single audience `vault` it not specified.
+
                                         Deprecated: use serviceAccountRef.Audiences instead
                                       items:
                                         type: string
@@ -9493,6 +9477,7 @@ spec:
                                         Optional expiration time in seconds that will be used to request a temporary
                                         Kubernetes service account token for the service account referenced by
                                         `serviceAccountRef`.
+
                                         Deprecated: this will be removed in the future.
                                         Defaults to 10 minutes.
                                       format: int64
@@ -13828,6 +13813,7 @@ spec:
                                         Optional audiences field that will be used to request a temporary Kubernetes service
                                         account token for the service account referenced by `serviceAccountRef`.
                                         Defaults to a single audience `vault` it not specified.
+
                                         Deprecated: use serviceAccountRef.Audiences instead
                                       items:
                                         type: string
@@ -13837,6 +13823,7 @@ spec:
                                         Optional expiration time in seconds that will be used to request a temporary
                                         Kubernetes service account token for the service account referenced by
                                         `serviceAccountRef`.
+
                                         Deprecated: this will be removed in the future.
                                         Defaults to 10 minutes.
                                       format: int64
@@ -14890,6 +14877,9 @@ spec:
         - jsonPath: .status.conditions[?(@.type=="Ready")].status
           name: Ready
           type: string
+        - jsonPath: .status.refreshTime
+          name: Last Sync
+          type: date
       name: v1
       schema:
         openAPIV3Schema:
@@ -15580,6 +15570,9 @@ spec:
         - jsonPath: .status.conditions[?(@.type=="Ready")].status
           name: Ready
           type: string
+        - jsonPath: .status.refreshTime
+          name: Last Sync
+          type: date
       deprecated: true
       name: v1beta1
       schema:
@@ -17090,6 +17083,9 @@ spec:
         - jsonPath: .status.conditions[?(@.type=="Ready")].reason
           name: Status
           type: string
+        - jsonPath: .status.refreshTime
+          name: Last Sync
+          type: date
       name: v1alpha1
       schema:
         openAPIV3Schema:
@@ -18002,96 +17998,6 @@ spec:
                       required:
                         - akeylessGWApiURL
                         - authSecretRef
-                      type: object
-                    alibaba:
-                      description: Alibaba configures this store to sync secrets using Alibaba Cloud provider
-                      properties:
-                        auth:
-                          description: AlibabaAuth contains a secretRef for credentials.
-                          properties:
-                            rrsa:
-                              description: AlibabaRRSAAuth authenticates against Alibaba using RRSA.
-                              properties:
-                                oidcProviderArn:
-                                  type: string
-                                oidcTokenFilePath:
-                                  type: string
-                                roleArn:
-                                  type: string
-                                sessionName:
-                                  type: string
-                              required:
-                                - oidcProviderArn
-                                - oidcTokenFilePath
-                                - roleArn
-                                - sessionName
-                              type: object
-                            secretRef:
-                              description: AlibabaAuthSecretRef holds secret references for Alibaba credentials.
-                              properties:
-                                accessKeyIDSecretRef:
-                                  description: The AccessKeyID is used for authentication
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                                accessKeySecretSecretRef:
-                                  description: The AccessKeySecret is used for authentication
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                              required:
-                                - accessKeyIDSecretRef
-                                - accessKeySecretSecretRef
-                              type: object
-                          type: object
-                        regionID:
-                          description: Alibaba Region to be used for the provider
-                          type: string
-                      required:
-                        - auth
-                        - regionID
                       type: object
                     aws:
                       description: AWS configures this store to sync secrets using AWS Secret Manager provider
@@ -19303,52 +19209,6 @@ spec:
                         - clientId
                         - clientSecret
                         - tenant
-                      type: object
-                    device42:
-                      description: Device42 configures this store to sync secrets using the Device42 provider
-                      properties:
-                        auth:
-                          description: Auth configures how secret-manager authenticates with a Device42 instance.
-                          properties:
-                            secretRef:
-                              description: Device42SecretRef contains the secret reference for accessing the Device42 instance.
-                              properties:
-                                credentials:
-                                  description: Username / Password is used for authentication.
-                                  properties:
-                                    key:
-                                      description: |-
-                                        A key in the referenced Secret.
-                                        Some instances of this field may be defaulted, in others it may be required.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[-._a-zA-Z0-9]+$
-                                      type: string
-                                    name:
-                                      description: The name of the Secret resource being referred to.
-                                      maxLength: 253
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
-                                      type: string
-                                    namespace:
-                                      description: |-
-                                        The namespace of the Secret resource being referred to.
-                                        Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
-                                      maxLength: 63
-                                      minLength: 1
-                                      pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
-                                      type: string
-                                  type: object
-                              type: object
-                          required:
-                            - secretRef
-                          type: object
-                        host:
-                          description: URL configures the Device42 instance URL.
-                          type: string
-                      required:
-                        - auth
-                        - host
                       type: object
                     doppler:
                       description: Doppler configures this store to sync secrets using the Doppler provider
@@ -21095,6 +20955,120 @@ spec:
                               type: string
                           type: object
                       type: object
+                    nebiusmysterybox:
+                      description: NebiusMysterybox configures this store to sync secrets using NebiusMysterybox provider
+                      properties:
+                        apiDomain:
+                          description: NebiusMysterybox API endpoint
+                          type: string
+                        auth:
+                          description: Auth defines parameters to authenticate in MysteryBox
+                          properties:
+                            serviceAccountCredsSecretRef:
+                              description: |-
+                                ServiceAccountCreds references a Kubernetes Secret key that contains a JSON
+                                document with service account credentials used to get an IAM token.
+
+                                Expected JSON structure:
+                                {
+                                  "subject-credentials": {
+                                    "alg": "RS256",
+                                    "private-key": "-----BEGIN PRIVATE KEY-----\n<private-key>\n-----END PRIVATE KEY-----\n",
+                                    "kid": "<public-key-id>",
+                                    "iss": "<issuer-service-account-id>",
+                                    "sub": "<subject-service-account-id>"
+                                  }
+                                }
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                            tokenSecretRef:
+                              description: Token authenticates with Nebius Mysterybox by presenting a token.
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                          type: object
+                          x-kubernetes-validations:
+                            - message: either serviceAccountCredsSecretRef or tokenSecretRef must be set
+                              rule: has(self.serviceAccountCredsSecretRef) || has(self.tokenSecretRef)
+                        caProvider:
+                          description: The provider for the CA bundle to use to validate NebiusMysterybox server certificate.
+                          properties:
+                            certSecretRef:
+                              description: |-
+                                SecretKeySelector is a reference to a specific 'key' within a Secret resource.
+                                In some instances, `key` is a required field.
+                              properties:
+                                key:
+                                  description: |-
+                                    A key in the referenced Secret.
+                                    Some instances of this field may be defaulted, in others it may be required.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[-._a-zA-Z0-9]+$
+                                  type: string
+                                name:
+                                  description: The name of the Secret resource being referred to.
+                                  maxLength: 253
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$
+                                  type: string
+                                namespace:
+                                  description: |-
+                                    The namespace of the Secret resource being referred to.
+                                    Ignored if referent is not cluster-scoped, otherwise defaults to the namespace of the referent.
+                                  maxLength: 63
+                                  minLength: 1
+                                  pattern: ^[a-z0-9]([-a-z0-9]*[a-z0-9])?$
+                                  type: string
+                              type: object
+                          type: object
+                      required:
+                        - apiDomain
+                        - auth
+                      type: object
                     ngrok:
                       description: Ngrok configures this store to sync secrets using the ngrok provider.
                       properties:
@@ -22434,6 +22408,7 @@ spec:
                                         Optional audiences field that will be used to request a temporary Kubernetes service
                                         account token for the service account referenced by `serviceAccountRef`.
                                         Defaults to a single audience `vault` it not specified.
+
                                         Deprecated: use serviceAccountRef.Audiences instead
                                       items:
                                         type: string
@@ -22443,6 +22418,7 @@ spec:
                                         Optional expiration time in seconds that will be used to request a temporary
                                         Kubernetes service account token for the service account referenced by
                                         `serviceAccountRef`.
+
                                         Deprecated: this will be removed in the future.
                                         Defaults to 10 minutes.
                                       format: int64
@@ -26778,6 +26754,7 @@ spec:
                                         Optional audiences field that will be used to request a temporary Kubernetes service
                                         account token for the service account referenced by `serviceAccountRef`.
                                         Defaults to a single audience `vault` it not specified.
+
                                         Deprecated: use serviceAccountRef.Audiences instead
                                       items:
                                         type: string
@@ -26787,6 +26764,7 @@ spec:
                                         Optional expiration time in seconds that will be used to request a temporary
                                         Kubernetes service account token for the service account referenced by
                                         `serviceAccountRef`.
+
                                         Deprecated: this will be removed in the future.
                                         Defaults to 10 minutes.
                                       format: int64
@@ -28442,6 +28420,7 @@ spec:
                                     Optional audiences field that will be used to request a temporary Kubernetes service
                                     account token for the service account referenced by `serviceAccountRef`.
                                     Defaults to a single audience `vault` it not specified.
+
                                     Deprecated: use serviceAccountRef.Audiences instead
                                   items:
                                     type: string
@@ -28451,6 +28430,7 @@ spec:
                                     Optional expiration time in seconds that will be used to request a temporary
                                     Kubernetes service account token for the service account referenced by
                                     `serviceAccountRef`.
+
                                     Deprecated: this will be removed in the future.
                                     Defaults to 10 minutes.
                                   format: int64
@@ -29171,10 +29151,10 @@ metadata:
   name: external-secrets-cert-controller
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-cert-controller
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -29254,10 +29234,10 @@ kind: ClusterRole
 metadata:
   name: external-secrets-controller
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -29406,10 +29386,10 @@ kind: ClusterRole
 metadata:
   name: external-secrets-view
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     rbac.authorization.k8s.io/aggregate-to-view: "true"
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
@@ -29457,10 +29437,10 @@ kind: ClusterRole
 metadata:
   name: external-secrets-edit
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     rbac.authorization.k8s.io/aggregate-to-edit: "true"
     rbac.authorization.k8s.io/aggregate-to-admin: "true"
@@ -29512,10 +29492,10 @@ metadata:
   name: external-secrets-servicebindings
   labels:
     servicebinding.io/controller: "true"
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -29535,10 +29515,10 @@ metadata:
   name: external-secrets-cert-controller
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-cert-controller
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -29555,10 +29535,10 @@ kind: ClusterRoleBinding
 metadata:
   name: external-secrets-controller
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -29576,10 +29556,10 @@ metadata:
   name: external-secrets-leaderelection
   namespace: external-secrets-system
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 rules:
   - apiGroups:
@@ -29615,10 +29595,10 @@ metadata:
   name: external-secrets-leaderelection
   namespace: external-secrets-system
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -29637,10 +29617,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     external-secrets.io/component: webhook
   
@@ -29663,10 +29643,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-cert-controller
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 2
@@ -29679,10 +29659,10 @@ spec:
     metadata:
       labels:
         
-        helm.sh/chart: external-secrets-1.3.1
+        helm.sh/chart: external-secrets-2.2.0
         app.kubernetes.io/name: external-secrets-cert-controller
         app.kubernetes.io/instance: external-secrets
-        app.kubernetes.io/version: "v1.3.1"
+        app.kubernetes.io/version: "v2.2.0"
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: external-secrets-cert-controller
@@ -29700,7 +29680,7 @@ spec:
             runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
-          image: ghcr.io/external-secrets/external-secrets:v1.3.1
+          image: ghcr.io/external-secrets/external-secrets:v2.2.0
           imagePullPolicy: IfNotPresent
           args:
           - certcontroller
@@ -29735,10 +29715,10 @@ metadata:
   name: external-secrets
   namespace: external-secrets-system
   labels:
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -29750,10 +29730,10 @@ spec:
   template:
     metadata:
       labels:
-        helm.sh/chart: external-secrets-1.3.1
+        helm.sh/chart: external-secrets-2.2.0
         app.kubernetes.io/name: external-secrets
         app.kubernetes.io/instance: external-secrets
-        app.kubernetes.io/version: "v1.3.1"
+        app.kubernetes.io/version: "v2.2.0"
         app.kubernetes.io/managed-by: Helm
     spec:
       serviceAccountName: external-secrets
@@ -29771,7 +29751,7 @@ spec:
             runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
-          image: ghcr.io/external-secrets/external-secrets:v1.3.1
+          image: ghcr.io/external-secrets/external-secrets:v2.2.0
           imagePullPolicy: IfNotPresent
           args:
           - --concurrent=1
@@ -29792,10 +29772,10 @@ metadata:
   namespace: external-secrets-system
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 2
@@ -29808,10 +29788,10 @@ spec:
     metadata:
       labels:
         
-        helm.sh/chart: external-secrets-1.3.1
+        helm.sh/chart: external-secrets-2.2.0
         app.kubernetes.io/name: external-secrets-webhook
         app.kubernetes.io/instance: external-secrets
-        app.kubernetes.io/version: "v1.3.1"
+        app.kubernetes.io/version: "v2.2.0"
         app.kubernetes.io/managed-by: Helm
     spec:
       hostNetwork: false
@@ -29829,7 +29809,7 @@ spec:
             runAsUser: 1000
             seccompProfile:
               type: RuntimeDefault
-          image: ghcr.io/external-secrets/external-secrets:v1.3.1
+          image: ghcr.io/external-secrets/external-secrets:v2.2.0
           imagePullPolicy: IfNotPresent
           args:
           - webhook
@@ -29873,10 +29853,10 @@ metadata:
   name: secretstore-validate
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     external-secrets.io/component: webhook
 webhooks:
@@ -29895,6 +29875,7 @@ webhooks:
   admissionReviewVersions: ["v1", "v1beta1"]
   sideEffects: None
   timeoutSeconds: 5
+  failurePolicy: Fail
 
 - name: "validate.clustersecretstore.external-secrets.io"
   rules:
@@ -29919,10 +29900,10 @@ metadata:
   name: externalsecret-validate
   labels:
     
-    helm.sh/chart: external-secrets-1.3.1
+    helm.sh/chart: external-secrets-2.2.0
     app.kubernetes.io/name: external-secrets-webhook
     app.kubernetes.io/instance: external-secrets
-    app.kubernetes.io/version: "v1.3.1"
+    app.kubernetes.io/version: "v2.2.0"
     app.kubernetes.io/managed-by: Helm
     external-secrets.io/component: webhook
 webhooks:

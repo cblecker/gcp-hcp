@@ -1,7 +1,7 @@
 {
   "name": "gcp-hcp",
   "description": "GCP Hosted Control Planes architecture, design decisions, and implementation plans",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "author": {
     "name": "github.com/openshift-online"
   }

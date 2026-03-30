@@ -41,6 +41,30 @@ Topics: networking, identity, observability, infrastructure, ingress, storage, o
 
 **Keeping the skill in sync:** When adding new design decisions, implementation plans, incidents, or SLOs, update the architecture skill's topic index in `claude-plugin/gcp-hcp/skills/gcp-hcp-architecture/SKILL.md` with a link to the new file under the appropriate topic.
 
+## PR Workflow Agents
+
+### Code Review Agent
+
+The `gcp-hcp:author-code-review` agent automates PR review comment processing. It fetches open PRs, analyzes review comments (including CoderabbitAI structured suggestions), implements fixes, and pushes commits. Invoke via `/gcp-hcp:address-reviews [PR_NUMBER] [batch|loop]`.
+
+Features:
+- CoderabbitAI comment parsing (inline suggestions, actionable comments)
+- Interactive, batch, and loop execution modes
+- Repo-aware verification (detects build system per repository)
+- Branch sync coordination with ci-triage agent
+
+### CI Triage Agent
+
+The `gcp-hcp:ci-triage` agent analyzes CI failures on PRs, fixes blocking issues, and retests flaky tests. Invoke via `/gcp-hcp:ci-triage [PR_NUMBER] [watch until green]`.
+
+Features:
+- Dynamic check classification into Tier 1 (blocking) and Tier 2 (e2e/integration)
+- Fixes Tier 1 failures (verify, lint, unit tests) automatically
+- Detects flaky e2e patterns and triggers retests (Prow, GitHub Actions, Konflux)
+- Watch mode polls until all checks pass
+- Repo-aware CI system detection and retest commands
+
+**Recommended workflow:** Run `address-reviews` first to fix review comments, then `ci-triage` to handle any resulting CI failures.
 
 # Security Rules
 

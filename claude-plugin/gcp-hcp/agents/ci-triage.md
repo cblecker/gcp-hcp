@@ -254,7 +254,7 @@ gh run rerun <run-id> --failed
 
 After analysis, provide:
 
-```
+```text
 ## CI Triage Report for PR #${PR_NUMBER}
 
 ### Summary
@@ -354,8 +354,8 @@ Iteration 3: Analyze e2e-aks → flaky (quota), trigger retest
 **Tracking retests per job:**
 ```bash
 # Count how many times each job has been retested
-gh pr view ${PR_NUMBER} --repo ${REPO_SLUG} --comments \
-  --jq '[.[] | .body | select(startswith("/retest"))] | length'
+gh pr view ${PR_NUMBER} --repo ${REPO_SLUG} --json comments \
+  --jq '[.comments[] | .body | select(startswith("/retest"))] | length'
 ```
 
 **Status check command:**

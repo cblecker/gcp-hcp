@@ -19,6 +19,8 @@ The agent will:
 5. Run verification using repo-appropriate commands
 6. Commit and push fixes
 
-Run in interactive mode - confirm with me before making changes and before pushing.
+If execution mode is "batch", run in batch mode - do not ask for confirmation.
+If execution mode is "loop", run in loop mode - continuously process until no actionable comments remain.
+Otherwise, run in interactive mode - confirm with me before making changes and before pushing.
 
 $ARGUMENTS

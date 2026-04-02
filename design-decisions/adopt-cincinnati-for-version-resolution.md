@@ -106,7 +106,7 @@ The channel group is persisted in the cluster spec so upgrades use the same chan
 ### Operability:
 
 * No new infrastructure to maintain (no cache, no database tables, no background jobs beyond the new controller)
-* Supported versions are managed via the API schema enum — adding a new version is a schema update
+* Supported versions are managed via the API schema pattern (`^4\.22\..+$`) — adding a new minor version is a pattern update
 * Version availability within a supported minor is determined by what Red Hat publishes to Cincinnati channels
 
 ## References

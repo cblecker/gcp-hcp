@@ -2,9 +2,10 @@
 name: Add-GCP-Service-Account
 description: >
   Use when adding a new GCP service account for Workload Identity Federation (WIF)
-  in HyperShift and related GCP HCP repositories. Covers API types, IAM bindings,
-  CRD regeneration, CLS backend/controller propagation, and CLI updates across
-  hypershift, gcp-hcp-infra, cls-backend, cls-controller, and gcp-hcp-cli.
+  in HyperShift and related GCP HCP repositories. Covers e2e plumbing, CI pipeline,
+  API types, IAM bindings, CRD regeneration, CLS backend/controller propagation,
+  and CLI updates across hypershift, openshift/release, gcp-hcp-infra, cls-backend,
+  cls-controller, and gcp-hcp-cli.
 ---
 
 # Add GCP Service Account for WIF
@@ -21,15 +22,73 @@ When adding a new GCP service account (e.g., for a new controller like Cloud Con
 
 ## Repositories Affected
 
-1. **hypershift** - Core HyperShift project
-2. **gcp-hcp-infra** - HyperShift operator manifests on management clusters
-3. **cls-backend** - CLS Backend API
-4. **cls-controller** - CLS Controller (HostedCluster template)
-5. **gcp-hcp-cli** - gcphcp CLI tool
+1. **hypershift** - Core HyperShift project (requires two PRs — see below)
+2. **openshift/release** - CI pipeline step registry
+3. **gcp-hcp-infra** - HyperShift operator manifests on management clusters
+4. **cls-backend** - CLS Backend API
+5. **cls-controller** - CLS Controller (HostedCluster template)
+6. **gcp-hcp-cli** - gcphcp CLI tool
+
+> **Important:** The hypershift changes should be split into two PRs to avoid breaking the `e2e-gke` CI pipeline:
+> - **Hypershift PR 1:** E2E flag plumbing only (Step 1) — additive, no-op when empty
+> - **openshift/release PR:** CI step creates the SA and passes the flag (Step 2)
+> - **Hypershift PR 2:** API type, IAM bindings, CLI flag, credential reconciliation, tests (Steps 3-7)
+>
+> This ensures the pipeline has the plumbing in place before the API changes land.
 
 ---
 
-## Step 1: HyperShift API Types
+## Step 1: HyperShift E2E Flag Plumbing (Hypershift PR 1)
+
+**Files:**
+- `test/e2e/e2e_test.go`
+- `test/e2e/util/options.go`
+
+The e2e test framework needs a flag so the CI pipeline can pass the new service account email. This is additive and harmless when the flag is empty. Follow the pattern of the existing `e2e.gcp-*-sa` flags:
+
+1. Add the flag in `test/e2e/e2e_test.go`:
+```go
+flag.StringVar(&globalOpts.ConfigurableClusterOptions.GCP<ServiceAccount>ServiceAccount, "e2e.gcp-<serviceaccount>-sa", "", "Service Account for <Component>")
+```
+
+2. Add the field to `ConfigurableClusterOptions` in `test/e2e/util/options.go`:
+```go
+GCP<ServiceAccount>ServiceAccount string
+```
+
+3. Wire it to the create options in `DefaultGCPOptions()`:
+```go
+<ServiceAccount>ServiceAccount: o.ConfigurableClusterOptions.GCP<ServiceAccount>ServiceAccount,
+```
+
+> **Note:** This must land before the openshift/release PR so the test binary accepts the new flag.
+
+---
+
+## Step 2: OpenShift Release CI Step (openshift/release PR)
+
+**Repo:** `openshift/release` (separate PR)
+
+The CI pipeline needs to create the new service account and pass it to the e2e test. Two files need changes:
+
+1. **`ci-operator/step-registry/hypershift/gcp/hosted-cluster-setup/`** — the setup step that creates IAM resources needs to create the new service account and write the email to `${SHARED_DIR}/<serviceaccount>-sa`.
+
+2. **`ci-operator/step-registry/hypershift/gcp/run-e2e/hypershift-gcp-run-e2e-commands.sh`** — load the SA email and pass it to the test binary:
+```bash
+if [[ -f "${SHARED_DIR}/<serviceaccount>-sa" ]]; then
+    <SERVICEACCOUNT>_SA="$(<"${SHARED_DIR}/<serviceaccount>-sa")"
+fi
+```
+And add to the test command:
+```bash
+--e2e.gcp-<serviceaccount>-sa="${<SERVICEACCOUNT>_SA}"
+```
+
+> **Important:** This must land after Hypershift PR 1 (so the test binary accepts the flag) and before Hypershift PR 2 (so `e2e-gke` has signal when the API changes land).
+
+---
+
+## Step 3: HyperShift API Types (Hypershift PR 2)
 
 **File:** `api/hypershift/v1beta1/gcp.go`
 
@@ -51,7 +110,7 @@ type GCPServiceAccountsEmails struct {
 make api
 ```
 
-### Step 1b: HyperShift CLI Flag
+### Step 3b: HyperShift CLI Flag
 
 **File:** `cmd/cluster/gcp/create.go`
 **Test:** `cmd/cluster/gcp/create_test.go`
@@ -96,7 +155,7 @@ hostedCluster.Spec.Platform.GCP.WorkloadIdentity.ServiceAccountsEmails.<ServiceA
    - Test that the flag value is correctly set in the HostedCluster spec
    - Test that a missing flag produces the expected error
 
-### Step 1c: HyperShift Operator Credential Reconciliation
+### Step 3c: HyperShift Operator Credential Reconciliation
 
 **File:** `hypershift-operator/controllers/hostedcluster/internal/platform/gcp/gcp.go`
 **Test:** `hypershift-operator/controllers/hostedcluster/internal/platform/gcp/gcp_test.go`
@@ -136,24 +195,25 @@ if wif.ServiceAccountsEmails.<ServiceAccount> == "" {
    - Add the field to all test fixtures that build `GCPServiceAccountsEmails`
    - Add a test case for missing service account validation
 
-### Step 1d: HyperShift E2E Tests
+### Step 3d: HyperShift E2E Tests
 
-**Files:**
-- `test/e2e/create_cluster_test.go`
-- `test/e2e/v2/tests/api_ux_validation_test.go`
+**File:** `test/e2e/v2/tests/api_ux_validation_test.go`
 
-1. Add the new field to the `ServiceAccountsEmails` fixture in `test/e2e/create_cluster_test.go`:
+> **Note:** GCP validation tests were previously in `test/e2e/create_cluster_test.go` but have been moved to `test/e2e/v2/tests/api_ux_validation_test.go`.
+
+1. Add the new field to the `ServiceAccountsEmails` fixture in the `validGCPPlatformSpec()` helper (or equivalent fixture builder):
 ```go
 ServiceAccountsEmails: hyperv1.GCPServiceAccountsEmails{
     NodePool:        "nodepool@my-project-123.iam.gserviceaccount.com",
     ControlPlane:    "controlplane@my-project-123.iam.gserviceaccount.com",
     CloudController: "cloudcontroller@my-project-123.iam.gserviceaccount.com",
     Storage:         "storage@my-project-123.iam.gserviceaccount.com",
+    ImageRegistry:   "imageregistry@my-project-123.iam.gserviceaccount.com",
     <ServiceAccount>: "<serviceaccount>@my-project-123.iam.gserviceaccount.com",  // NEW
 }
 ```
 
-2. Add a validation test entry in `test/e2e/v2/tests/api_ux_validation_test.go` to the `DescribeTable` block where other GSA fields are validated:
+2. Add a validation test entry in the `DescribeTable` block where other GSA fields are validated:
 ```go
 Entry("it should reject invalid <ServiceAccount> service account email",
     func(spec *hyperv1.GCPPlatformSpec) {
@@ -162,11 +222,11 @@ Entry("it should reject invalid <ServiceAccount> service account email",
     "<serviceAccount> in body"),
 ```
 
-This follows the pattern used by `CloudController`, `Storage`, `ControlPlane`, and `NodePool`.
+This follows the pattern used by `CloudController`, `Storage`, `ControlPlane`, `NodePool`, and `ImageRegistry`.
 
 ---
 
-## Step 2: HyperShift IAM Bindings
+### Step 3e: HyperShift IAM Bindings
 
 **File:** `cmd/infra/gcp/iam-bindings.json`
 
@@ -196,11 +256,23 @@ Add the new service account definition with required IAM roles:
 
 **Note:** The `create_iam.go` and `destroy_iam.go` use `//go:embed` to load this file, so no code changes needed there.
 
+### Step 3f: HyperShift Documentation
+
+**Files:**
+- `docs/content/how-to/gcp/create-gcp-hosted-cluster.md`
+- `docs/content/how-to/gcp/create-gcp-iam.md`
+
+Update the GCP documentation to include the new `--<service-account>-service-account` flag:
+
+1. Add the flag to the `hypershift create cluster gcp` command example in `create-gcp-hosted-cluster.md`
+2. Add the flag to the parameter reference table with its description
+3. If the service account requires specific IAM permissions, document them in `create-gcp-iam.md`
+
 ---
 
-## Step 3: Regenerate HyperShift Manifests in gcp-hcp-infra
+## Step 4: Regenerate HyperShift Manifests in gcp-hcp-infra
 
-After Steps 1 and 2 are merged to HyperShift main, regenerate `hypershift.yaml`
+After Hypershift PR 2 (Step 3) is merged to HyperShift main, regenerate `hypershift.yaml`
 in the infra repo so the management cluster CRDs reflect the new field.
 
 **File generated:** `kustomize/hypershift/hypershift.yaml`
@@ -230,7 +302,7 @@ git push
 
 ---
 
-## Step 4: CLS Backend Model
+## Step 5: CLS Backend Model
 
 **File:** `cls-backend/internal/models/cluster.go`
 
@@ -246,7 +318,7 @@ type WIFServiceAccountsRef struct {
 
 ---
 
-## Step 5: CLS Controller Template
+## Step 6: CLS Controller Template
 
 **File:** `cls-controller/deployments/helm-cls-hypershift-client/templates/controllerconfig.yaml`
 
@@ -265,11 +337,11 @@ workloadIdentity:
 
 ---
 
-## Step 6: gcphcp CLI
+## Step 7: gcphcp CLI
 
 **File:** `gcp-hcp-cli/src/gcphcp/utils/hypershift.py`
 
-### 6a. Add to SERVICE_ACCOUNTS constant:
+### 7a. Add to SERVICE_ACCOUNTS constant:
 
 ```python
 SERVICE_ACCOUNTS = {
@@ -279,7 +351,7 @@ SERVICE_ACCOUNTS = {
 }
 ```
 
-### 6b. Add to iam_config_to_wif_spec function:
+### 7b. Add to iam_config_to_wif_spec function:
 
 ```python
 def iam_config_to_wif_spec(iam_config: Dict[str, Any]) -> Dict[str, Any]:
@@ -302,11 +374,23 @@ def iam_config_to_wif_spec(iam_config: Dict[str, Any]) -> Dict[str, Any]:
 
 After making all changes:
 
+**Hypershift PR 1 (e2e plumbing):**
+- [ ] E2E flag plumbing added (`e2e.gcp-<serviceaccount>-sa` in `e2e_test.go` and `options.go`)
+- [ ] `make verify` passes in hypershift
+
+**openshift/release PR (CI step):**
+- [ ] openshift/release CI step creates the SA and passes the flag
+
+**Hypershift PR 2 (API + implementation):**
 - [ ] `make api` runs successfully in hypershift
 - [ ] `make verify` passes in hypershift
 - [ ] `hypershift create cluster gcp --help` shows the new `--<service-account>-service-account` flag
-- [ ] E2E test fixtures in `test/e2e/create_cluster_test.go` include the new field
-- [ ] API UX validation test in `test/e2e/v2/tests/api_ux_validation_test.go` includes the new field
+- [ ] E2E test fixture in `test/e2e/v2/tests/api_ux_validation_test.go` includes the new field in `ServiceAccountsEmails`
+- [ ] API UX validation test in `test/e2e/v2/tests/api_ux_validation_test.go` includes a validation `Entry` for the new field
+- [ ] `validateWorkloadIdentityConfiguration()` includes the new field check
+- [ ] GCP documentation updated with the new flag (`docs/content/how-to/gcp/`)
+
+**Downstream repos:**
 - [ ] `kustomize/hypershift/update.sh` runs successfully in gcp-hcp-infra
 - [ ] `hypershift.yaml` in gcp-hcp-infra contains the new SA field in the CRD schema
 - [ ] `go build ./...` works in cls-backend
@@ -335,7 +419,44 @@ After making all changes:
 > 4. Create a branch, make changes, push to your fork
 > 5. Open PR from your fork to upstream
 
-### PR 1: HyperShift (openshift/hypershift)
+### PR 1: HyperShift — E2E flag plumbing (openshift/hypershift)
+
+This PR is additive and harmless — it adds the e2e flag without changing any runtime behavior. It must land before the openshift/release PR so the test binary accepts the new flag.
+
+**Upstream:** `https://github.com/openshift/hypershift`
+**Your fork:** `https://github.com/<your-username>/hypershift`
+
+```bash
+cd /path/to/hypershift
+
+# Create branch
+git checkout -b add-<service-account>-sa-plumbing
+
+# Stage changes
+git add test/e2e/e2e_test.go
+git add test/e2e/util/options.go
+
+# Commit
+git commit -m "feat(gcp): add e2e flag plumbing for <ServiceAccount>
+
+Add e2e.gcp-<serviceaccount>-sa flag for <Component>.
+This is additive and no-op when the flag value is empty.
+"
+```
+
+### PR 2: OpenShift Release — CI step (openshift/release)
+
+Creates the service account in CI and passes it to the e2e test. Should land after PR 1 so the test binary accepts the flag.
+
+**Upstream:** `https://github.com/openshift/release`
+
+Update two files:
+- `ci-operator/step-registry/hypershift/gcp/hosted-cluster-setup/` — create the SA and write email to `${SHARED_DIR}/<serviceaccount>-sa`
+- `ci-operator/step-registry/hypershift/gcp/run-e2e/hypershift-gcp-run-e2e-commands.sh` — load and pass `--e2e.gcp-<serviceaccount>-sa`
+
+### PR 3: HyperShift — API type, secret creation, and component wiring (openshift/hypershift)
+
+The main PR with the API change, credential reconciliation, and component integration. When this merges, the CI pipeline (PR 1 + PR 2) already has the plumbing in place, so `e2e-gke` has signal immediately.
 
 **Upstream:** `https://github.com/openshift/hypershift`
 **Your fork:** `https://github.com/<your-username>/hypershift`
@@ -353,7 +474,6 @@ git add cmd/cluster/gcp/create.go
 git add cmd/cluster/gcp/create_test.go
 git add hypershift-operator/controllers/hostedcluster/internal/platform/gcp/gcp.go
 git add hypershift-operator/controllers/hostedcluster/internal/platform/gcp/gcp_test.go
-git add test/e2e/create_cluster_test.go
 git add test/e2e/v2/tests/api_ux_validation_test.go
 git add client/  # Generated client code
 git add vendor/  # Vendored API changes
@@ -361,35 +481,16 @@ git add vendor/  # Vendored API changes
 # Commit
 git commit -m "feat(gcp): add <ServiceAccount> service account for <Component>
 
-Add <ServiceAccount> field to GCPServiceAccountsEmails and IAM bindings
-for <Component> authentication via Workload Identity Federation.
+Add <ServiceAccount> field to GCPServiceAccountsEmails for <Component>
+authentication via Workload Identity Federation.
 
 IAM roles:
 - roles/...
 - roles/...
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
-
-# Push and create PR
-git push -u origin add-<service-account>-sa
-gh pr create --title "feat(gcp): add <ServiceAccount> service account for <Component>" \
-  --body "## Summary
-- Add \`<ServiceAccount>\` field to \`GCPServiceAccountsEmails\` struct
-- Add IAM bindings for <Component> with required roles
-- Add \`--<service-account>-service-account\` CLI flag to \`hypershift create cluster gcp\`
-- Add credential secret and WIF validation in hypershift-operator
-- Update generated client code and tests
-
-## Test plan
-- [ ] \`make verify\` passes
-- [ ] \`hypershift create cluster gcp\` accepts the new flag
-- [ ] \`hypershift create iam gcp\` creates the new service account
-- [ ] New service account has correct IAM role bindings
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 ```
 
-### PR 2: gcp-hcp-infra
+### PR 4: gcp-hcp-infra
 
 ```bash
 cd /path/to/gcp-hcp-infra/kustomize/hypershift
@@ -422,7 +523,7 @@ rejected by the management cluster without this update.
 - Requires hypershift PR: <link>"
 ```
 
-### PR 3: CLS Backend (apahim/cls-backend)
+### PR 5: CLS Backend (apahim/cls-backend)
 
 **Upstream:** `https://github.com/apahim/cls-backend`
 **Your fork:** `https://github.com/<your-username>/cls-backend`
@@ -440,8 +541,7 @@ git add internal/models/cluster.go
 git commit -m "feat: add <ServiceAccount>Email to WIFServiceAccountsRef
 
 Support the new <ServiceAccount> service account for GCP clusters.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 
 # Push and create PR
 git push -u origin add-<service-account>-sa
@@ -452,11 +552,10 @@ the new <Component> service account for GCP HyperShift clusters.
 
 ## Dependencies
 - Requires hypershift PR: <link>
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 ```
 
-### PR 4: CLS Controller (apahim/cls-controller)
+### PR 6: CLS Controller (apahim/cls-controller)
 
 **Upstream:** `https://github.com/apahim/cls-controller`
 **Your fork:** `https://github.com/<your-username>/cls-controller`
@@ -475,8 +574,7 @@ git commit -m "feat: add <serviceAccount> to HostedCluster template
 
 Include the new <ServiceAccount> service account in the HostedCluster
 workloadIdentity configuration.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 
 # Push and create PR
 git push -u origin add-<service-account>-sa
@@ -488,11 +586,10 @@ Add \`<serviceAccount>\` field to the HostedCluster template's
 ## Dependencies
 - Requires hypershift PR: <link>
 - Requires cls-backend PR: <link>
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 ```
 
-### PR 5: gcphcp CLI (apahim/gcp-hcp-cli)
+### PR 7: gcphcp CLI (apahim/gcp-hcp-cli)
 
 **Upstream:** `https://github.com/apahim/gcp-hcp-cli`
 **Your fork:** `https://github.com/<your-username>/gcp-hcp-cli`
@@ -510,8 +607,7 @@ git add src/gcphcp/utils/hypershift.py
 git commit -m "feat: add <service-account> to SERVICE_ACCOUNTS mapping
 
 Support the new <ServiceAccount> service account from hypershift IAM output.
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 
 # Push and create PR
 git push -u origin add-<service-account>-sa
@@ -522,23 +618,24 @@ gh pr create --title "feat: add <service-account> to SERVICE_ACCOUNTS mapping" \
 
 ## Dependencies
 - Requires hypershift PR: <link>
-
-Co-Authored-By: Claude <noreply@anthropic.com>"
+"
 ```
 
 ---
 
 ## PR Merge Order
 
-PRs should be merged in this order to avoid breaking changes:
+PRs should be merged in this order to avoid breaking the CI pipeline:
 
-1. **hypershift** - API and IAM bindings (foundation)
-2. **gcp-hcp-infra** - Regenerate `hypershift.yaml` CRDs
-3. **gcp-hcp-cli** - CLI support (uses hypershift output)
-4. **cls-backend** - Backend model (API contract)
-5. **cls-controller** - Template update (uses backend model)
+1. **Hypershift PR 1** — E2E flag plumbing (Step 1) — additive, no-op when empty
+2. **openshift/release PR** — CI step creates SA and passes the flag (Step 2)
+3. **Hypershift PR 2** — API type, IAM bindings, CLI flag, secret creation, tests (Step 3) — `e2e-gke` has signal immediately
+4. **gcp-hcp-infra** — Regenerate `hypershift.yaml` CRDs (Step 4)
+5. **gcp-hcp-cli** — CLI support (Step 7)
+6. **cls-backend** — Backend model (Step 5)
+7. **cls-controller** — Template update (Step 6)
 
-**Note:** Steps 3-5 can be merged in parallel if coordinated, but hypershift and gcp-hcp-infra must be updated first so the management cluster CRDs are in sync.
+**Note:** PRs 5-7 can be merged in parallel if coordinated, but hypershift PRs and gcp-hcp-infra must be updated first so the management cluster CRDs are in sync.
 
 ---
 

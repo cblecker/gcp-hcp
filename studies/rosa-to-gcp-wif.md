@@ -24,7 +24,7 @@ Any OpenShift or ROSA cluster publishes an OIDC discovery document with public k
      --location=global \
      --workload-identity-pool=<POOL_NAME> \
      --issuer-uri="<OIDC_ISSUER_URL>" \
-     --allowed-audiences="openshift" \
+     --allowed-audiences="<OIDC_ISSUER_URL>" \
      --attribute-mapping="google.subject=assertion.sub"
    ```
 
@@ -66,7 +66,7 @@ OpenShift Cluster                          GCP
 │ (projected, signed   │                    │ Pool + OIDC Provider │
 │  by kube-apiserver)  │                    │ (trusts cluster's    │
 │                      │                    │  OIDC issuer)        │
-│  aud: "openshift"    │                    │                      │
+│  aud: <issuer URL>   │                    │                      │
 │  iss: <S3 bucket>    │                    │                      │
 │  sub: system:sa:...  │                    │                      │
 └──────────┬───────────┘                    └──────────┬───────────┘
@@ -91,7 +91,7 @@ OpenShift Cluster                          GCP
 - **OIDC Issuer**: A URL pointing to the public OIDC discovery document. For ROSA/STS, this is an S3 bucket URL.
 - **JWKS (JSON Web Key Set)**: The public keys used to verify token signatures. Published at the issuer URL under `/keys.json`.
 - **Projected Service Account Token**: A short-lived JWT issued by the kube-apiserver with a specific audience. This is NOT the same as the legacy long-lived SA token.
-- **Audience**: The `aud` claim in the token. Must match the `allowed-audiences` configured on the GCP OIDC provider. For OpenShift, this is typically `openshift`.
+- **Audience**: The `aud` claim in the token. Must match the `allowed-audiences` configured on the GCP OIDC provider. By default, projected SA tokens use the OIDC issuer URL as the audience. Setting `allowed-audiences` to the issuer URL means no special audience configuration is needed — it works out of the box.
 - **Subject**: The `sub` claim in the token. For K8s service accounts, the format is `system:serviceaccount:<namespace>:<name>`.
 
 ## Discovering the OIDC Issuer
@@ -157,13 +157,13 @@ gcloud iam workload-identity-pools providers create-oidc <PROVIDER_NAME> \
   --location=global \
   --workload-identity-pool=<POOL_NAME> \
   --issuer-uri="<OIDC_ISSUER_URL>" \
-  --allowed-audiences="openshift" \
+  --allowed-audiences="<OIDC_ISSUER_URL>" \
   --attribute-mapping="google.subject=assertion.sub"
 ```
 
 Key parameters:
 - `--issuer-uri`: The OIDC issuer URL discovered in the previous step.
-- `--allowed-audiences`: Must match the `--audience` flag when creating tokens. OpenShift uses `openshift`.
+- `--allowed-audiences`: Must match the `aud` claim in the token. Setting this to the OIDC issuer URL matches the default projected token audience, requiring no special configuration in CI jobs.
 - `--attribute-mapping`: Maps JWT claims to Google attributes. `google.subject=assertion.sub` maps the K8s SA subject (`system:serviceaccount:namespace:name`) to the Google principal.
 
 ### Granting IAM permissions
@@ -193,7 +193,7 @@ gcloud projects add-iam-policy-binding <GCP_PROJECT> \
 
 ```bash
 oc create serviceaccount <SA_NAME> -n <NAMESPACE>
-TOKEN=$(oc create token <SA_NAME> -n <NAMESPACE> --audience=openshift --duration=3600s)
+TOKEN=$(oc create token <SA_NAME> -n <NAMESPACE> --duration=3600s)
 ```
 
 ### Step 2: Decode the token to verify claims
@@ -218,7 +218,7 @@ Expected claims:
 
 Verify that:
 - `iss` matches the OIDC issuer URL configured in the GCP provider
-- `aud` contains `openshift` (or whatever you set as `allowed-audiences`)
+- `aud` contains the OIDC issuer URL (matches the default projected token audience)
 - `sub` is the expected service account identity
 
 ### Step 3: Exchange the token for a GCP federated access token
@@ -248,7 +248,7 @@ A successful response looks like:
 
 | Symptom | Likely cause |
 |---------|-------------|
-| `INVALID_AUDIENCE` | `--audience` on `oc create token` doesn't match `--allowed-audiences` on the provider |
+| `INVALID_AUDIENCE` | Token audience doesn't match `--allowed-audiences` on the provider. Use the default (no `--audience` flag) or match explicitly |
 | `INVALID_ISSUER` | Issuer URL in the token doesn't match `--issuer-uri` on the provider |
 | `INVALID_SIGNATURE` | GCP can't fetch or verify JWKS from the issuer URL (bucket not public?) |
 | STS returns token but GCP API calls fail with 403 | Federated identity has no IAM bindings — identity is proven but not authorized |
@@ -266,7 +266,7 @@ This was validated on the `app.ci` Prow cluster used for OpenShift CI.
 | WIF Pool | `prowci` |
 | OIDC Provider | `prowci-oidc` |
 | Full provider resource | `projects/925104043997/locations/global/workloadIdentityPools/prowci/providers/prowci-oidc` |
-| Allowed audiences | `openshift` |
+| Allowed audiences | `https://ci-dv2np-oidc.s3.amazonaws.com` (matches default token audience) |
 | Attribute mapping | `google.subject` = `assertion.sub` |
 | Test SA | `prowci-test` in namespace `patmarti` |
 | Result | STS exchange returned valid federated access token |

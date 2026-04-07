@@ -49,7 +49,7 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 ### Negative
 
 * Initial setup requires creating WIF pools/providers and IAM bindings per GCP project (one-time cost)
-* CI job manifests must request projected tokens with the correct audience (`openshift`)
+* The WIF provider's `allowed-audiences` is set to the OIDC issuer URL, which matches the default projected token audience — no special configuration needed in CI job manifests
 * Dependency on the CI cluster's OIDC endpoint availability (S3 bucket) — if the OIDC endpoint is unreachable, GCP cannot verify tokens
 * Slightly more complex debugging: token exchange failures require understanding of OIDC/STS flow
 
@@ -69,6 +69,6 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 
 ### Operability:
 
-* CI job authors must ensure their pods request tokens with `--audience=openshift`
+* Zero friction for CI job authors: the WIF provider accepts the default projected token audience (the OIDC issuer URL), so no special `--audience` flag is needed
 * WIF pool/provider setup is a one-time operation per GCP project; documented in the [rosa-to-gcp-wif study](../studies/rosa-to-gcp-wif.md)
 * Troubleshooting guide provided in the study doc covers common failure modes (audience mismatch, issuer mismatch, missing IAM bindings)

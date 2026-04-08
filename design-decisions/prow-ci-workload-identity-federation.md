@@ -52,7 +52,7 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 
 * Initial setup requires creating WIF pools/providers per build cluster and IAM bindings per GCP project (one-time cost). Each cluster has a different OIDC issuer, so the WIF pool needs one provider per cluster.
 * WIF only works from clusters with a public OIDC endpoint. Currently 9 of 11 build clusters qualify (all AWS). GCP build clusters (build04, build08) and vsphere02 have private issuers (`kubernetes.default.svc`) and cannot use WIF.
-* Jobs must be dispatched to WIF-capable clusters only. This requires a new dispatcher capability (e.g., `public-oidc`) in `core-services/sanitize-prow-jobs/_clusters.yaml` and the corresponding label on the jobs.
+* Jobs must be dispatched to WIF-capable clusters only. Temporarily using the `intranet` capability (AWS-only) as a proxy until GCP build clusters are migrated to STS.
 * Dependency on the CI cluster's OIDC endpoint availability (S3 bucket / CloudFront) — if the OIDC endpoint is unreachable, GCP cannot verify tokens
 * Slightly more complex debugging: token exchange failures require understanding of OIDC/STS flow
 
@@ -80,26 +80,23 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 
 ### Dispatcher capability
 
-Add a `public-oidc` capability to all build clusters that have a publicly accessible OIDC issuer. This is done by editing [`core-services/sanitize-prow-jobs/_clusters.yaml`](https://github.com/openshift/release/blob/main/core-services/sanitize-prow-jobs/_clusters.yaml) in openshift/release:
+Jobs requiring WIF must only run on clusters with a public OIDC endpoint. After discussing with the DPTP team ([Slack thread](https://redhat-internal.slack.com/archives/CBN38N3MW/p1775592706242139)), they advised against adding a new semantic capability (`public-oidc`) to avoid bloating the capability list. Instead:
 
-```yaml
-# Add to each WIF-capable cluster's capabilities list:
-- public-oidc
-```
-
-Jobs requiring WIF declare the capability in their labels:
+**Temporary workaround**: Use the existing `intranet` capability, which is only assigned to AWS clusters. Since all AWS clusters have public OIDC (as a consequence of the STS migration), this effectively limits jobs to WIF-capable clusters. GCP build clusters do not have the `intranet` capability and are unlikely to get it.
 
 ```yaml
 labels:
-  capability/public-oidc: public-oidc
+  capability/intranet: intranet
 ```
 
-Currently eligible clusters: build01, build03, build05, build06, build07, build09, build10, build11. See the [build farm inventory](../studies/rosa-to-gcp-wif.md#build-farm-cluster-inventory) for details.
+This is a pragmatic short-term solution. Once the GCP build clusters are migrated to STS (see below), the `intranet` requirement can be removed.
 
 ### WIF pool with per-cluster providers
 
 A single GCP Workload Identity Pool should contain one OIDC provider per build cluster. IAM bindings are pool-scoped, so they apply regardless of which cluster the job runs on.
 
-### Making GCP build clusters WIF-compatible
+### GCP build cluster STS migration
 
-To enable WIF on the GCP build clusters (build04, build08), they would need to be reinstalled with `credentialsMode: Manual` and `ccoctl gcp create-all` to create a public OIDC bucket. This is a DPTP team decision and a significant cluster lifecycle change — it is not a prerequisite for this design decision, as 9 of 11 build clusters already support WIF.
+The AWS build clusters gained public OIDC issuers as a consequence of their STS migration, which was completed over the past year by the DPTP team. The GCP build clusters (build04, build08) were never migrated to STS.
+
+The DPTP team confirmed that GCP/OCP does support STS (`credentialsMode: Manual` with `ccoctl`) and agreed to look into migrating the GCP build clusters. A Jira ticket will be created to track this work. Once the GCP clusters have public OIDC endpoints, the `intranet` capability workaround can be removed and WIF will work across all build clusters.

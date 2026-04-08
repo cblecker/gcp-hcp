@@ -99,4 +99,4 @@ A single GCP Workload Identity Pool should contain one OIDC provider per build c
 
 The AWS build clusters gained public OIDC issuers as a consequence of their STS migration, which was completed over the past year by the DPTP team. The GCP build clusters (build04, build08) were never migrated to STS.
 
-The DPTP team confirmed that GCP/OCP does support STS (`credentialsMode: Manual` with `ccoctl`) and agreed to look into migrating the GCP build clusters. A Jira ticket will be created to track this work. Once the GCP clusters have public OIDC endpoints, the `intranet` capability workaround can be removed and WIF will work across all build clusters.
+The DPTP team confirmed that GCP/OCP does support STS (`credentialsMode: Manual` with `ccoctl`) and agreed to look into migrating the GCP build clusters. This is tracked in [DPTP-4758](https://redhat.atlassian.net/browse/DPTP-4758). Once the GCP clusters have public OIDC endpoints, the `intranet` capability workaround can be removed and WIF will work across all build clusters.

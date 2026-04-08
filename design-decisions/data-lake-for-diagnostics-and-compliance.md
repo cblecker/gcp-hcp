@@ -6,7 +6,7 @@
 
 ## Decision
 
-Use a two-tier GCP-native data lake architecture: BigQuery for real-time streaming data that needs immediate queryability (e.g., AI diagnostic findings, operational events) and GCS for high-volume compliance data that is rarely queried (e.g., audit logs) with BigQuery external tables for ad-hoc access. Data in BigQuery is accessible to AI agents via Google's managed BigQuery MCP server, enabling agents to query historical data as part of their reasoning loop — for example, checking prior diagnostic findings before investigating a new alert, or correlating patterns across clusters and time ranges. Two reusable Terraform child modules (`data-lake` and `data-lake-sink`) provide the infrastructure, deployed per region with sinks per source project.
+Use a two-tier GCP-native data lake architecture: BigQuery for real-time streaming data that needs immediate queryability (e.g., AI diagnostic findings, operational events) and Cloud Logging Log Analytics for compliance audit logs (centrally queryable via standard BigQuery SQL with zero schema management). Data in BigQuery is accessible to AI agents via Google's managed BigQuery MCP server, enabling agents to query historical data as part of their reasoning loop — for example, checking prior diagnostic findings before investigating a new alert, or correlating patterns across clusters and time ranges. Two reusable Terraform child modules (`data-lake` and `data-lake-sink`) provide the diagnostic findings infrastructure. Audit log capture uses a single folder-level aggregated sink to a centralized log bucket with Log Analytics — automatically capturing all current and future projects with no per-project configuration. Audit log shipping is independently toggleable via `enable_audit_logs` for cost control.
 
 ## Context
 
@@ -92,13 +92,13 @@ The two-tier approach optimizes for the different access patterns and cost profi
 
 Spike validation ([GCP-497](https://redhat.atlassian.net/browse/GCP-497)) confirmed:
 
-- End-to-end flow validated: Cloud Monitoring alert → Pub/Sub → Eventarc → Cloud Run diagnose-agent → structured JSON stdout → Cloud Logging → Sink → BigQuery table → SQL query returns results
+- End-to-end diagnostic flow validated: Cloud Monitoring alert → Pub/Sub → Eventarc → Cloud Run diagnose-agent → structured JSON stdout → Cloud Logging → per-project sink → BigQuery table → SQL query returns results
 - Diagnostic findings arrive in BigQuery within 1-2 minutes of the agent emitting them
-- Cloud Logging sinks to GCS deliver in hourly batches (up to 3 hours for first batch)
-- GCS lifecycle policies (Standard → Nearline → Archive → Delete) work correctly with Cloud Logging sink output
-- BigQuery external tables successfully read Cloud Logging JSON files from GCS with explicit schema (required to skip fields with invalid column name characters like `@type` and `k8s.io/`)
 - BigQuery views provide a clean query surface that flattens `jsonPayload.*` fields — users query `SELECT * FROM view_recent_findings` without needing to know the Cloud Logging envelope schema
-- Folder-level aggregated sink captures Admin Activity, System Event, and Policy Denied from all projects under a folder with a single sink definition
+- Folder-level aggregated sink captures Admin Activity, System Event, and Policy Denied from all projects under a folder with a single sink definition — cross-project audit logs queryable via standard SQL immediately
+- Log Analytics linked dataset handles complex audit log schema including `@type` fields — no schema management required (GCS external tables were rejected due to this issue)
+- GCS external tables were initially implemented but failed due to `@type` field name conflicts in Cloud Audit Logs — this drove the switch to Log Analytics
+- MCP BigQuery integration validated: diagnose-agent queries diagnostic history before investigating alerts, references prior findings in diagnosis
 - Pydantic schema validation (`DiagnosticFinding` model) ensures type consistency before the first write to BigQuery, preventing silent schema-on-first-write errors
 
 ### Comparison
@@ -127,11 +127,12 @@ Spike validation ([GCP-497](https://redhat.atlassian.net/browse/GCP-497)) confir
 - **Unified query surface**: Standard BigQuery SQL for both data tiers — native tables for diagnostics, Log Analytics linked dataset for audit logs. No external tables, no schema management, no `JSON_VALUE()` workarounds
 - **Compliance-ready**: Centralized log bucket with configurable retention meets ISO 27001 and SOC 2 audit log retention requirements. Logs are immutable within Cloud Logging
 - **Zero-maintenance audit capture**: Folder-level aggregated sink automatically captures audit logs from all current and future projects under the folder — no per-project configuration needed
-- **Reusable modules**: `data-lake` (dataset + bucket + external tables + views) and `data-lake-sink` (configurable sink for diagnostic findings) follow the established child module pattern
+- **Independently toggleable**: Diagnostic findings (`enable_data_lake`) and audit log shipping (`enable_audit_logs`) can be enabled/disabled independently for cost control
+- **Reusable modules**: `data-lake` (dataset + log bucket + views) and `data-lake-sink` (per-project diagnostic sink) follow the established child module pattern
 - **AI enrichment via MCP**: The diagnose-agent connects to Google's managed BigQuery MCP server to query a cluster's prior diagnostic history before investigating new alerts. This creates a feedback loop — the agent references prior root causes, detects recurring patterns, and escalates systemic issues instead of repeating point remediations. Validated end-to-end: agent queries history, finds prior PVC alerts, and incorporates that context into current etcd diagnosis.
 - **Extensible MCP pattern**: The MCP client bridge (`McpToolRegistry`) is generic — any MCP server can be registered with a prefix. Future integrations (Cloud Logging MCP, custom MCPs) follow the same pattern with no agent code changes.
 - **SRE investigation**: Per-cluster diagnostic timeline available via `view_recent_findings` with `WHERE cluster_id = '...'`
-- **No infrastructure to manage**: Cloud Logging handles sink routing, BigQuery handles query execution, GCS handles storage lifecycle — no ETL pipelines, no Dataflow, no custom code
+- **No infrastructure to manage**: Cloud Logging handles sink routing and audit log storage, BigQuery handles query execution, Log Analytics handles the linked dataset — no ETL pipelines, no Dataflow, no custom code
 
 ### Negative
 
@@ -145,7 +146,7 @@ Spike validation ([GCP-497](https://redhat.atlassian.net/browse/GCP-497)) confir
 
 ### Reliability
 
-* **Sink delivery guarantees**: Cloud Logging sinks provide at-least-once delivery. BigQuery streaming sinks deliver within minutes. GCS sinks deliver in hourly batches. Both handle transient failures with built-in retry.
+* **Sink delivery guarantees**: Cloud Logging sinks provide at-least-once delivery. BigQuery streaming sinks deliver diagnostic findings within minutes. The folder sink to the centralized log bucket delivers audit logs in near real-time (same Cloud Logging infrastructure). Both handle transient failures with built-in retry.
 * **Sink health monitoring**: Sink health should be monitored via Cloud Monitoring's `logging.googleapis.com/exports/error_count` metric at the project level.
 * **Schema evolution**: The diagnostic agent uses a versioned Pydantic schema (`schema_version` field). New fields are additive and safe — BigQuery auto-extends the schema on new columns. Type changes or renames require a schema version bump and migration plan. The `evidence` field is serialized as a JSON string to avoid repeated field schema complexity.
 
@@ -240,9 +241,9 @@ Folder (contains all region + MC projects)
 
 | Module | Purpose | Deploys From |
 |--------|---------|-------------|
-| `data-lake` | BigQuery dataset, views, alerts for diagnostic findings | Global or region module |
-| `data-lake-sink` | Per-project log sink for diagnostic findings (BigQuery streaming) | Caller (region config, MC config) |
-| Folder sink + log bucket | Centralized audit log bucket with Log Analytics | Folder-level Terraform config |
+| `data-lake` | BigQuery dataset, views, alerts for diagnostic findings. Centralized log bucket with Log Analytics for audit logs (gated by `enable_audit_logs`). | Global module |
+| `data-lake-sink` | Per-project log sink for diagnostic findings (BigQuery streaming) | Region module, MC module |
+| Folder sink | Routes audit logs from all projects to the centralized log bucket | Global or environment-level Terraform config |
 
 ### Component Summary
 
@@ -252,9 +253,9 @@ Folder (contains all region + MC projects)
 | BigQuery views | `google_bigquery_table` (view) | Terraform (data-lake module) | Pre-built diagnostic queries |
 | Storage alerts | `google_monitoring_alert_policy` | Terraform (data-lake module) | BigQuery cost guardrails |
 | Diagnostic sink | `google_logging_project_sink` | Terraform (data-lake-sink module) | Per-project: routes findings to BigQuery |
-| Centralized log bucket | `google_logging_project_bucket_config` | Terraform (folder-level config) | Stores audit logs from all projects with Log Analytics |
-| Audit sink | `google_logging_folder_sink` | Terraform (folder-level config) | Folder-level: routes all audit logs to centralized log bucket |
-| Log Analytics linked dataset | Automatic (linked to log bucket) | Google-managed | BigQuery SQL interface over audit logs |
+| Centralized log bucket | `google_logging_project_bucket_config` | Terraform (data-lake module) | Stores audit logs from all projects with Log Analytics (gated by `enable_audit_logs`) |
+| Audit sink | `google_logging_folder_sink` | Terraform (global/env config) | Folder-level: routes all audit logs to centralized log bucket |
+| Log Analytics linked dataset | `google_logging_linked_dataset` | Terraform (data-lake module) | Creates the linked BigQuery dataset (`_AllLogs` view) for SQL querying |
 | MCP client bridge | `mcp_client.py` (Python) | Agent code | Connects agent to BigQuery MCP for history queries |
 | MCP cross-project IAM | `google_project_iam_member` | Terraform (MC region-iam.tf) | `bigquery.dataViewer`, `bigquery.jobUser`, `mcp.toolUser` for MC agent → data lake |
 

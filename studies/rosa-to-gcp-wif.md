@@ -301,14 +301,14 @@ This means the OIDC issuer cannot be predicted from the cluster name — it must
 
 Jobs are dispatched to build clusters by the [prow-job-dispatcher](https://github.com/openshift/ci-tools/tree/main/cmd/prow-job-dispatcher) based on capabilities defined in [`core-services/sanitize-prow-jobs/_clusters.yaml`](https://github.com/openshift/release/blob/main/core-services/sanitize-prow-jobs/_clusters.yaml).
 
-To ensure WIF-dependent jobs only run on clusters with a public OIDC endpoint, we use the existing `intranet` capability as a temporary workaround. This capability is only assigned to AWS clusters, which all have public OIDC issuers. Jobs requiring WIF declare it in their labels:
+To ensure WIF-dependent jobs only run on clusters with a public OIDC endpoint, we use the `arm64` capability as a temporary workaround. This capability is only assigned to AWS clusters (openshift/release#77542 added it to all of them), which all have public OIDC issuers. Despite the name, these clusters are dual-arch — jobs run on amd64 nodes by default.
 
 ```yaml
 labels:
-  capability/intranet: intranet
+  capability/arm64: arm64
 ```
 
-Per [DPTP team feedback](https://redhat-internal.slack.com/archives/CBN38N3MW/p1775592706242139), adding a new semantic capability (e.g., `public-oidc`) was rejected to avoid bloating the capability list. The `intranet` workaround is temporary — once the GCP build clusters are migrated to STS ([DPTP-4758](https://redhat.atlassian.net/browse/DPTP-4758)), WIF will work across all clusters and the capability constraint can be removed.
+Per [DPTP team feedback](https://redhat-internal.slack.com/archives/CBN38N3MW/p1775592706242139), adding a new semantic capability (e.g., `public-oidc`) was rejected to avoid bloating the capability list. The `arm64` workaround is temporary — once the GCP build clusters are migrated to STS ([DPTP-4758](https://redhat.atlassian.net/browse/DPTP-4758)), WIF will work across all clusters and the capability constraint can be removed.
 
 **Note**: The dispatcher supports AND-matching of capabilities but does **not** support negation (e.g., "NOT gcp").
 

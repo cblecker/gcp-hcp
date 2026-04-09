@@ -52,7 +52,7 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 
 * Initial setup requires creating WIF pools/providers per build cluster and IAM bindings per GCP project (one-time cost). Each cluster has a different OIDC issuer, so the WIF pool needs one provider per cluster.
 * WIF only works from clusters with a public OIDC endpoint. Currently 8 of 11 build clusters qualify (all AWS). GCP build clusters (build04, build08) and vsphere02 have private issuers (`kubernetes.default.svc`) and cannot use WIF.
-* Jobs must be dispatched to WIF-capable clusters only. Temporarily using the `intranet` capability (AWS-only) as a proxy until GCP build clusters are migrated to STS.
+* Jobs must be dispatched to WIF-capable clusters only. Temporarily using the `arm64` capability (AWS-only) as a proxy until GCP build clusters are migrated to STS.
 * Dependency on the CI cluster's OIDC endpoint availability (S3 bucket / CloudFront) — if the OIDC endpoint is unreachable, GCP cannot verify tokens
 * Slightly more complex debugging: token exchange failures require understanding of OIDC/STS flow
 
@@ -82,18 +82,45 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 
 Jobs requiring WIF must only run on clusters with a public OIDC endpoint. After discussing with the DPTP team ([Slack thread](https://redhat-internal.slack.com/archives/CBN38N3MW/p1775592706242139)), they advised against adding a new semantic capability (`public-oidc`) to avoid bloating the capability list. Instead:
 
-**Temporary workaround**: Use the existing `intranet` capability, which is only assigned to AWS clusters. Since all AWS clusters have public OIDC (as a consequence of the STS migration), this effectively limits jobs to WIF-capable clusters. GCP build clusters do not have the `intranet` capability and are unlikely to get it.
+**Temporary workaround**: Use the `arm64` capability, which is only assigned to AWS clusters (openshift/release#77542 added it to all AWS build clusters). Since all AWS clusters have public OIDC (as a consequence of the STS migration), this effectively limits jobs to WIF-capable clusters.
 
 ```yaml
 labels:
-  capability/intranet: intranet
+  capability/arm64: arm64
 ```
 
-This is a pragmatic short-term solution. Once the GCP build clusters are migrated to STS (see below), the `intranet` requirement can be removed.
+Despite the name, `arm64` clusters are dual-arch (amd64 + arm64) — jobs run on amd64 nodes by default. This is a pragmatic short-term solution. Once the GCP build clusters are migrated to STS (see below), the `arm64` requirement can be removed.
 
 ### WIF pool with per-cluster providers
 
 A single GCP Workload Identity Pool should contain one OIDC provider per build cluster. IAM bindings are pool-scoped, so they apply regardless of which cluster the job runs on.
+
+### IAM bindings with dynamic namespaces
+
+CI jobs run in ephemeral `ci-op-*` namespaces created by ci-operator. The namespace name is random per job run, which means `principal://...subject/system:serviceaccount:<ns>:<sa>` bindings are unusable — they target a single fixed subject.
+
+Instead, use custom attribute mappings and `principalSet` bindings:
+
+1. **Attribute mapping** on the WIF provider maps JWT claims to custom attributes:
+   ```
+   attribute.service_account = assertion['kubernetes.io']['serviceaccount']['name']
+   ```
+
+2. **`principalSet` IAM binding** matches all identities in the pool where the attribute equals a specific value:
+   ```bash
+   --member="principalSet://iam.googleapis.com/projects/<NUMBER>/locations/global/workloadIdentityPools/<POOL>/attribute.service_account/<SA_NAME>"
+   ```
+
+This grants access to any pod whose K8s service account name matches (e.g., `e2e-gke`), regardless of which random `ci-op-*` namespace it runs in or which build cluster it lands on.
+
+An **attribute condition** (CEL expression) on the provider adds a second layer, restricting federation to only `ci-op-*` namespaces and specific SA names:
+
+```cel
+assertion['kubernetes.io']['namespace'].startsWith('ci-op-') &&
+assertion['kubernetes.io']['serviceaccount']['name'] in ['e2e-gke', 'e2e-v2-gke']
+```
+
+This ensures that even if a token from the same cluster is presented with a different SA name or namespace, the WIF exchange is rejected.
 
 ### GCP build cluster STS migration
 

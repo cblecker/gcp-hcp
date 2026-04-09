@@ -32,7 +32,7 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 ## Decision Rationale
 
 * **Justification**: WIF eliminates static credentials entirely. Federated tokens are short-lived (~1h), scoped to a specific service account identity (`system:serviceaccount:<ns>:<sa>`), and cannot be used outside the token exchange flow. This dramatically reduces blast radius compared to JSON keys that grant indefinite access.
-* **Evidence**: We validated the full flow on `app.ci` — discovered the OIDC issuer, created a WIF pool/provider in `patmarti-1`, and successfully exchanged a projected SA token for a GCP federated access token. We also inventoried all 11 build clusters and confirmed 9 of them (all AWS) have public OIDC endpoints compatible with WIF. See [rosa-to-gcp-wif study](../studies/rosa-to-gcp-wif.md) for the complete walkthrough and inventory.
+* **Evidence**: We validated the full flow on `app.ci` — discovered the OIDC issuer, created a WIF pool/provider in `patmarti-1`, and successfully exchanged a projected SA token for a GCP federated access token. We also inventoried all 11 build clusters and confirmed 8 of them (all AWS) have public OIDC endpoints compatible with WIF. See [rosa-to-gcp-wif study](../studies/rosa-to-gcp-wif.md) for the complete walkthrough and inventory.
 * **Comparison**:
   - **Static JSON keys** are the simplest to set up but the weakest security posture. A leaked key grants permanent access until manually rotated. Keys stored on shared CI infrastructure are accessible to anyone with namespace access. Rotation requires coordinated secret updates across all consuming jobs.
   - **External token broker** adds operational complexity (a new service to build, deploy, and maintain) without clear benefit over native WIF, which is a first-party GCP capability requiring no custom infrastructure.
@@ -51,7 +51,7 @@ All Prow CI jobs that access GCP resources must authenticate exclusively via Wor
 ### Negative
 
 * Initial setup requires creating WIF pools/providers per build cluster and IAM bindings per GCP project (one-time cost). Each cluster has a different OIDC issuer, so the WIF pool needs one provider per cluster.
-* WIF only works from clusters with a public OIDC endpoint. Currently 9 of 11 build clusters qualify (all AWS). GCP build clusters (build04, build08) and vsphere02 have private issuers (`kubernetes.default.svc`) and cannot use WIF.
+* WIF only works from clusters with a public OIDC endpoint. Currently 8 of 11 build clusters qualify (all AWS). GCP build clusters (build04, build08) and vsphere02 have private issuers (`kubernetes.default.svc`) and cannot use WIF.
 * Jobs must be dispatched to WIF-capable clusters only. Temporarily using the `intranet` capability (AWS-only) as a proxy until GCP build clusters are migrated to STS.
 * Dependency on the CI cluster's OIDC endpoint availability (S3 bucket / CloudFront) — if the OIDC endpoint is unreachable, GCP cannot verify tokens
 * Slightly more complex debugging: token exchange failures require understanding of OIDC/STS flow

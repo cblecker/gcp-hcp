@@ -284,7 +284,7 @@ curl -sk https://<api-url>/.well-known/openid-configuration | python3 -c "import
 | build11 | AWS | `api.build11.ci.devcluster.openshift.com` | `https://ccoctl-build11-oidc.s3.us-east-2.amazonaws.com` | Yes | Yes |
 | vsphere02 | vSphere | `api.build02.vmc.ci.openshift.org` | `https://kubernetes.default.svc` | No | **No** |
 
-**Summary**: 9 of 11 active build clusters (all AWS) have public OIDC endpoints. The 3 GCP/vSphere clusters (build02/blocked, build04, build08) do not — they would need to be reinstalled with `credentialsMode: Manual` and `ccoctl` to get public OIDC.
+**Summary**: 8 of 11 active build clusters (all AWS) have public OIDC endpoints. The 3 GCP/vSphere clusters (build02/blocked, build04, build08) do not — they would need to be reinstalled with `credentialsMode: Manual` and `ccoctl` to get public OIDC.
 
 ### OIDC naming patterns
 

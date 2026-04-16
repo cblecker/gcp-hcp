@@ -85,7 +85,7 @@ type ReleaseSpec struct {
 }
 ```
 
-- `ChannelGroup` defaults to `"stable"` via the `DEFAULT_CHANNEL_GROUP` environment variable; persisted so upgrades use the same channel group
+- `ChannelGroup` defaults to the `DEFAULT_CHANNEL_GROUP` environment variable (e.g., `"stable"` in production, `"candidate"` in integration); persisted so upgrades use the same channel group
 
 **1b. Add version pattern to OpenAPI schema:**
 
@@ -106,7 +106,7 @@ If `channelGroup` is not provided, default to the value of the `DEFAULT_CHANNEL_
 
 **1d. Validate that version is provided:**
 
-Reject the request if `release.version` is empty (after defaults are applied). Direct image specification is not supported — all clusters must go through Cincinnati-based version resolution.
+The backend applies defaults (version, channelGroup) before validation. Reject the request if `release.version` is still empty after defaulting. Direct image specification is not supported — all clusters must go through Cincinnati-based version resolution.
 
 #### Verification
 

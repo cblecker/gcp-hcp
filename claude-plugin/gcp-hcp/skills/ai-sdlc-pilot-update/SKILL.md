@@ -75,6 +75,11 @@ repo:<owner>/<repo> is:pr is:open updated:>={start_date}
 - Touches paths: `claude-plugin/`, `.claude/`, `CLAUDE.md`, `AGENTS.md`, skills, agents
 - Title or body mentions: "SDLC", "pilot", "agentic", "skill", "claude", "AI"
 
+**For PRs in shared repos** (`openshift-eng/ai-helpers` and any repo not fully owned by the team), additionally require that the PR author is a known GCP HCP team member. Known GitHub handles:
+`apahim`, `cblecker`, `ckandag`, `cristianoveiga`, `jimdaga`, `patjlm`, `kkeane`, `billmvt`
+
+Skip PRs from other authors in shared repos even if they match the pilot-relevance filters.
+
 If the repo `openshift-online/gcp-hcp` is the current working directory, optionally supplement with:
 ```bash
 git log --since="{start_date}" --oneline --no-merges
@@ -93,28 +98,25 @@ Assemble gathered data into the 5-section template below.
 - PRs opened (not yet merged)
 - Tools, workflows, or skills referenced in PR titles/descriptions/Jira summaries
 
-**Auto-populate "What Happened"** from:
-- PRs merged (list as: `[repo#N] Title`)
-- Jira issues completed (list as: `[KEY] Summary`)
-- Notable status transitions (e.g., moved from In Progress → Review)
+**Auto-populate "What Happened"** from SDLC process changes only:
+- Jira issues completed (status → Done/Closed/Resolved) where the issue is about process, tooling, or documentation — not feature work
+- Status transitions on process-related issues (DoD, DoR, templates, pilot tracking)
+- Org directives or decisions that change how the team works
+- PRs whose *primary purpose* is SDLC tooling (e.g., new skills, agents, pilot infrastructure)
 
-**Leave placeholders** for the subjective sections and prompt the user:
+Do NOT list PRs that are ordinary feature or bug work produced using the AI-assisted workflow — the fact that they were AI-generated is not itself a "What Happened" event.
 
-```text
-I've pre-populated "What We Tried" and "What Happened" from Jira and GitHub activity.
-Please provide input for the remaining sections:
+**Auto-populate all five sections** from gathered context:
 
-**What We Learned** — surprises, missing context, things to do differently next time:
-> 
+- **What We Learned**: synthesize from meeting notes, cross-team sessions, and recurring themes in Jira/PR activity (e.g., bottlenecks, surprises, process gaps)
+- **What's Blocked**: extract from Jira issues with "Blocked" status, open dependencies, or explicit blocker language in issue descriptions or PR comments
+- **What We're Trying Next**: derive from open Jira issues in "To Do" or "Refinement" state, F2F action items, and unmerged pilot PRs
 
-**What's Blocked** — tooling gaps, access issues, integration problems:
-> 
+Present the complete draft — all five sections populated — and invite the user to correct, add, or remove content using the same review loop.
 
-**What We're Trying Next** — next experiments and focus areas for the coming two weeks:
-> 
-```
+Remove the AskUserQuestion prompt for these sections. If context is insufficient to populate a section, use "Nothing to report this period." and note what data was missing.
 
-Collect the user's responses interactively. Use `AskUserQuestion` if needed, or prompt inline and wait for replies.
+**Deduplication rule:** If a PR or Jira issue is already mentioned in "What We Tried," only carry it into "What Happened" if there is a distinct new event to report (e.g., it merged, it was completed, it transitioned to a new status). Do not list it in "What Happened" solely because it exists and is open.
 
 ---
 
@@ -132,13 +134,13 @@ Assemble the complete comment using the template:
 {auto-populated bullet list: PRs merged, issues completed, status changes}
 
 ### What We Learned
-{user input}
+{auto-populated from Jira/PR activity and meeting notes}
 
 ### What's Blocked
-{user input}
+{auto-populated from blocked issues and open dependencies}
 
 ### What We're Trying Next
-{user input}
+{auto-populated from open issues and action items}
 ```
 
 Display the full formatted Markdown in the terminal. Ask the user to confirm or request edits:

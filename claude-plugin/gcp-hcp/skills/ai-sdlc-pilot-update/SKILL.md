@@ -27,15 +27,17 @@ Compute:
 
 **BFS traversal starting at GCP-579:**
 
-Use a queue-based BFS. Start with `["GCP-579"]`. For each key in the queue:
+Use a queue-based BFS. Start with `["GCP-579"]`.
+Before traversal, fetch and store GCP-579's own fields using `mcp__atlassian__jira_get_issue` with `fields="key,summary,description,status,assignee,issuetype,created,updated"`.
+For each key in the queue:
 1. Search for direct children: `parent = KEY ORDER BY updated DESC`
    - Use `mcp__atlassian__jira_search` with `fields="key,summary,description,status,assignee,issuetype,created,updated"` and `limit=50`
    - Paginate with `start_at` if `total > 50` (pagination applies per parent-key search, not once globally)
-2. Fetch each child's key, summary, status, assignee, issuetype, updated fields
+2. Fetch each child's key, summary, description, status, assignee, issuetype, created, updated fields
 3. Add each child's key to the queue
 4. Continue until the queue is empty
 
-**After collecting all keys in the hierarchy (including GCP-579 itself):**
+**After collecting all keys in the hierarchy (including GCP-579 itself, with fields stored for each):**
 
 Fetch changelogs for all discovered keys using `mcp__atlassian__jira_batch_get_changelogs` with `fields="status"` to get status transitions. Filter transitions to those whose timestamp falls within the lookback window.
 

@@ -12,9 +12,16 @@
                 "source": "github",
                 "repo": "openshift-eng/ai-helpers"
             }
+        },
+        "gcp-hcp": {
+            "source": {
+                "source": "github",
+                "repo": "openshift-online/gcp-hcp"
+            }
         }
     },
     "enabledPlugins": {
-        "jira@ai-helpers": true
+        "jira@ai-helpers": true,
+        "gcp-hcp@gcp-hcp": true
     }
 }

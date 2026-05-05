@@ -22,8 +22,8 @@ assertion['kubernetes.io']['serviceaccount']['name'] in ['e2e-gke', 'e2e-v2-gke'
 ci-operator creates one K8s ServiceAccount per multi-stage test, named after the test's `as` field. All steps (pre, test, post) within that test share this SA. The SA names are stable — defined in `ci-operator/config/openshift/hypershift/openshift-hypershift-main.yaml`. If new test names are added, the attribute condition must be updated. See `openshift/ci-tools` `pkg/steps/multi_stage/init.go` (SA creation) and `pkg/steps/multi_stage/gen.go` (SA assignment to step pods).
 
 Additional mitigation layers:
-- **Custom audience**: The WIF provider requires a specific audience, rejecting the default projected token. CI scripts must explicitly request a token with `kubectl create token --audience=...`.
 - **CI folder isolation** (hard boundary): The SA's permissions are scoped exclusively to the CI folder. No path to production, integration, or staging resources regardless of authentication method.
+- **Custom audience** (optional hardening, deferred): When [ci-tools#5093](https://github.com/openshift/ci-tools/pull/5093) lands, the WIF provider can be configured to require a specific audience, rejecting the default projected token. This adds defense-in-depth against SA name collisions from other repos but is not required for the core security model — the CEL condition, principalSet scoping, and folder isolation already provide strong boundaries. Until then, the default audience (issuer URL) is used.
 
 **Pool and provider architecture:**
 
@@ -39,8 +39,8 @@ sequenceDiagram
     participant IAM as GCP IAM Credentials
     participant GCP as GCP APIs
 
-    Pod->>K8s: TokenRequest API (custom audience)
-    K8s-->>Pod: Projected SA token (JWT)
+    Pod->>K8s: Use default projected SA token
+    K8s-->>Pod: SA token (JWT, audience = issuer URL)
     Pod->>STS: Exchange JWT for STS token
     Note over STS: Validates JWT against WIF pool/provider<br/>Checks attribute_condition (namespace + SA name)
     STS-->>Pod: Federated access token
@@ -99,7 +99,7 @@ Single PR in `gcp-hcp-infra` containing all Terraform changes. The first `atlant
 4. **Create WIF resources** (new file: `terraform/modules/hypershift-ci/workload-identity-federation.tf`):
    - `google_iam_workload_identity_pool.openshift_ci` - Single WIF pool for all build clusters
    - `google_iam_workload_identity_pool_provider.build_clusters` - One OIDC provider per entry in `wif_providers` (using `for_each`), each with:
-     - `allowed_audiences` set to a custom string (e.g., `gcp-hcp-hypershift-ci-wif`) shared across all providers — NOT the default issuer URL
+     - `allowed_audiences` left as default (issuer URL). Can be tightened to a custom audience string when [ci-tools#5093](https://github.com/openshift/ci-tools/pull/5093) lands
      - Attribute mapping: `google.subject` = `assertion.sub`, `attribute.namespace` = `assertion['kubernetes.io']['namespace']`, `attribute.service_account` = `assertion['kubernetes.io']['serviceaccount']['name']`
      - Attribute condition from variable (restricts to `ci-op-*` namespaces AND specific test SA names)
    - `google_service_account_iam_member.wif_workload_identity_user` - One IAM binding per test SA name (using `for_each`), scoped via `principalSet://.../attribute.service_account/<sa-name>` to restrict impersonation to specific CI test identities only
@@ -147,11 +147,10 @@ Card 1 provisions the WIF infrastructure in GCP. This card updates the CI step s
 **Prerequisites**: Card 1 complete (WIF pool and providers exist and are applied).
 
 1. **Update GCP authentication in CI steps** (modify: `ci-operator/step-registry/hypershift/gcp/` scripts):
-   - Detect the build cluster's OIDC issuer from the pod's projected token and map it to the corresponding WIF provider
-   - Request a token with the custom WIF audience via the TokenRequest API
+   - Detect the build cluster's OIDC issuer from the pod's default projected SA token and map it to the corresponding WIF provider
    - Write a GCP credential configuration file pointing to the token and authenticate with `gcloud auth login --cred-file`
    - Remove references to cluster profile JSON key file
-   - Ensure `kubectl` and `jq` are available in the CI step image
+   - Ensure `jq` is available in the CI step image
    - Fail fast with a clear error if the OIDC issuer is not recognized
 
 2. **Ensure jobs only land on WIF-compatible clusters**:
@@ -173,12 +172,12 @@ Card 1 provisions the WIF infrastructure in GCP. This card updates the CI step s
 
 ### Acceptance Criteria
 
-- [ ] CI step scripts authenticate via TokenRequest API and `gcloud auth login --cred-file` (no static key)
+- [ ] CI step scripts authenticate via default projected SA token and `gcloud auth login --cred-file` (no static key)
 - [ ] `e2e-gke` rehearsal job passes end-to-end with WIF authentication
 - [ ] Jobs fail fast with a clear error if they land on a cluster without a public OIDC issuer
-- [ ] Authentication fails when using a token without the correct audience
 - [ ] No user-managed keys exist on the `hypershift-ci` service account
 - [ ] Key is removed from Vault
+- [ ] (Optional, deferred) When [ci-tools#5093](https://github.com/openshift/ci-tools/pull/5093) lands: switch to custom audience and validate that tokens without the correct audience are rejected
 
 ---
 
@@ -192,4 +191,5 @@ Card 1 provisions the WIF infrastructure in GCP. This card updates the CI step s
 | **Token lifetime**: The static key never expires; WIF tokens do. CI steps can run for 2-3 hours. | Validate token expiration behavior during implementation. The GCP SDK may re-read the token file and re-exchange automatically, or the script may need to refresh the token periodically. |
 | **Rollback path**: If WIF breaks CI | Keep the static key in Vault until post-validation. Only revoke after confirmed stability. |
 | **New build clusters added**: Future clusters may or may not have public OIDC | Add new WIF providers to Terraform as clusters are added. CI scripts fail fast on unrecognized issuers. |
+| **Custom audience deferred**: Default audience (issuer URL) is less restrictive than a custom audience | Low risk — requires SA name collision (`e2e-gke`) from another repo landing on the same build cluster. CEL + principalSet + folder isolation remain enforced. Custom audience can be added later via [ci-tools#5093](https://github.com/openshift/ci-tools/pull/5093) without infrastructure changes. |
 

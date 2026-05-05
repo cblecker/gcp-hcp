@@ -18,6 +18,12 @@ When we pick up work, we own it from design through deployment and beyond. We do
 
 A teammate waiting on a review or an answer is a teammate who can't make progress. We treat unblocking others as higher priority than our own feature work, because throughput of the whole team matters more than any individual's velocity. This means timely code reviews, pairing when someone is stuck, documenting what we learn, and proactively sharing context rather than waiting to be asked.
 
+## Celebrate each other's wins
+
+*Recognize contributions, make appreciation visible.*
+
+Our culture recognizes and rewards the results that drive us forward. We take time to acknowledge each other's successes — big and small. When we make appreciation specific and visible, we support one another and reinforce the behaviors that lead to our collective success.
+
 ## Reliability is the most important feature
 
 *Operations mindset, lean implementations, minimize maintenance surface.*

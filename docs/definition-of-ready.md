@@ -221,7 +221,7 @@ Each DoR criterion is a boolean check:
 
 AI agents should output validation results in this format:
 
-```
+```text
 Definition of Ready Check: [ISSUE-KEY]
 Issue Type: [Story/Epic/Task/etc]
 Status: [READY/NOT READY]

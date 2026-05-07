@@ -14,7 +14,7 @@ Work from the **bottom-up**: Start with the work item (Story, Task, Bug), then c
 
 The GCP HCP team operates within the broader Hybrid Platforms organization hierarchy:
 
-```
+```text
 Level 6: Strategic Goal (HATSTRAT)         [Roadmap/Strategy]
    ↓ Parent Link field
 Level 5: Outcome (HPSTRAT)                 [Org-wide Strategy]

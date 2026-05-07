@@ -1,0 +1,172 @@
+# Jira Hierarchy for GCP HCP Team
+
+This document describes the Jira issue hierarchy used by the GCP HCP team within the broader Hybrid Platforms organization structure.
+
+## Overview
+
+**When looking at work from the bottom to the top of the hierarchy, only create issues as far up in the hierarchy as necessary to ensure that issues align with their intended purpose.**
+
+Work from the **bottom-up**: Start with the work item (Story, Task, Bug), then create parent issues only when they serve a real purpose for grouping, coordination, or visibility.
+
+---
+
+## Hybrid Platforms Jira Hierarchy
+
+The GCP HCP team operates within the broader Hybrid Platforms organization hierarchy:
+
+```
+Level 6: Strategic Goal (HATSTRAT)         [Roadmap/Strategy]
+   ↓ Parent Link field
+Level 5: Outcome (HPSTRAT)                 [Org-wide Strategy]
+   ↓ Parent Link field
+Level 4: Feature / Initiative (GCP)        [Business Unit] ← GCP team works here
+   ↓ Parent Link field
+Level 3: Epic (GCP or Eng Team Projects)   [Execution - Team]
+   ↓ Epic Link field
+Level 2: Story / Task / Bug (GCP)          [Execution - Individual Work]
+```
+
+**Important**: The GCP project operates at **Level 4** (Business Unit), where Features and Initiatives live. Most work happens at Levels 2-4.
+
+---
+
+## Linking Mechanisms
+
+**Two different field types are used:**
+
+### Epic Link Field
+- **Purpose**: Links Stories, Tasks, and Bugs to their parent Epic
+- **Direction**: Level 2 → Level 3
+- **Field ID**: `customfield_12310140`
+- **Example**: Story GCP-100 links to Epic GCP-50
+
+### Parent Link Field
+- **Purpose**: Links all other hierarchical relationships
+- **Direction**: Epics → Features → Initiatives → Outcomes → Strategic Goals
+- **Field ID**: `customfield_12313140`
+- **Example**: Epic GCP-50 links to Feature GCP-10
+
+**Why Two Fields?**
+- Epic Link field predates the Parent Link field in Jira's evolution
+- Maintains backward compatibility with existing workflows
+- Both fields serve the same conceptual purpose (establishing parent-child relationships)
+
+---
+
+## Valid Structures for GCP HCP Team
+
+Work from the **bottom-up**. Start with the work item, then create parents only as far up as needed:
+
+### Common Structures
+
+- ✅ **Story alone** - Small bug fix or minor improvement (Level 2 only)
+- ✅ **Task alone** - Team process work, one-off documentation (Level 2 only)
+- ✅ **Stories → Epic** - Related Stories grouped under an Epic (Levels 2-3)
+- ✅ **Stories → Epic → Feature** - Capability spanning multiple Epics (Levels 2-4)
+- ✅ **Stories → Epic → Initiative** - Large initiative grouping Features (Levels 2-4)
+- ✅ **Epic alone** - Self-contained Epic without needing a Feature parent (Level 3 only)
+
+### Rarely Used by GCP Team
+
+- Stories → Epic → Feature → Outcome → Strategic Goal (full 6-level hierarchy)
+
+**Outcomes and Strategic Goals** (Levels 5-6) are managed at the org-wide strategy level (HPSTRAT/HATSTRAT projects), not within the GCP project.
+
+---
+
+## When to Create Parent Issues
+
+### Create an Epic (Level 3) when:
+- Multiple Stories/Tasks share a common technical goal or component
+- You need to track progress of related work as a cohesive unit
+- Work benefits from grouping but doesn't need strategic visibility
+- Work will span multiple iterations but doesn't need Feature-level coordination
+
+### Create a Feature (Level 4) when:
+- Multiple Epics need coordination and represent a broader capability
+- Work represents a major product capability visible to customers or stakeholders
+- Portfolio-level tracking is needed for quarterly/milestone planning
+- Cross-team coordination is required
+
+### Create an Initiative (Level 4) when:
+- Work represents a major strategic effort grouping multiple Features
+- Cross-team or cross-quarter coordination is required
+- Executive-level visibility and alignment is needed
+- Work aligns with top-level company objectives
+
+### Don't create Outcomes (Level 5) or Strategic Goals (Level 6)
+These are managed at the org-wide strategy level by leadership teams, not within individual project backlogs.
+
+---
+
+## Bottom-Up Principle
+
+**Don't create parent issues just to satisfy hierarchy.**
+
+Valid approaches:
+- ✅ A standalone Story for a bug fix (no Epic needed)
+- ✅ A standalone Task for team process work (no Epic needed)
+- ✅ An Epic with Stories but no Feature (work is self-contained)
+- ✅ Linking to existing parent issues when work naturally fits
+
+Invalid approaches:
+- ❌ Creating an Epic just because "Stories need Epics"
+- ❌ Creating a Feature just because "Epics need Features"
+- ❌ Auto-generating parent issues to fill hierarchy gaps
+
+**Only create parents when they serve a real purpose**: grouping related work, enabling coordination, or providing necessary visibility.
+
+---
+
+## Linking Best Practices
+
+### For AI Agents and Automation
+
+When creating or updating Jira issues programmatically:
+
+1. **Check for existing parents first** - Don't auto-create; link to existing issues when appropriate
+2. **Use correct field for link type**:
+   - Stories/Tasks/Bugs → Epic: Use **Epic Link field**
+   - Epics → Features/Initiatives: Use **Parent Link field**
+   - Features → Initiatives: Use **Parent Link field**
+3. **Create Epic first, then link to Feature** - Defensive two-step approach prevents creation failures
+4. **Respect bottom-up principle** - Don't force creation of parent issues unless explicitly requested or contextually necessary
+
+### For Manual Jira Usage
+
+When creating issues in the Jira UI:
+
+1. Start with the work item (Story, Task, Bug, Epic)
+2. Ask: "Does this need a parent for grouping, tracking, or visibility?"
+3. If yes: Link to existing parent or create one
+4. If no: Leave it standalone
+
+---
+
+## Project Locations
+
+Understanding where issue types live across projects:
+
+| Issue Type | Primary Project(s) | Notes |
+|------------|-------------------|-------|
+| **Story** | GCP | Individual work items |
+| **Task** | GCP | Internal work, process, docs |
+| **Bug** | GCP | Defects and fixes |
+| **Spike** | GCP | Research and investigation |
+| **Epic** | GCP or team projects | Team-level execution |
+| **Feature** | GCP | Business unit capabilities |
+| **Initiative** | GCP | Strategic business unit efforts |
+| **Outcome** | HPSTRAT | Org-wide strategy (not GCP) |
+| **Strategic Goal** | HATSTRAT | Top-level roadmap (not GCP) |
+
+---
+
+## Related Documentation
+
+- [Definition of Ready](./definition-of-ready.md) - Readiness criteria for all issue types
+- [Definition of Done](./definition-of-done.md) - Completion criteria
+- [Jira Story Template](./jira-story-template.md) - Story structure and sizing
+- [Jira Epic Template](./jira-epic-template.md) - Epic structure and breakdown
+- [Jira Feature Template](./jira-feature-template.md) - Feature structure
+- [Jira Task Template](./jira-task-template.md) - Task structure
+- [AGENTS.md](../AGENTS.md) - AI agent guidance including Jira plugin details

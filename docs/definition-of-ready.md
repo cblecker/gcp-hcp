@@ -18,73 +18,19 @@ The Definition of Ready (DoR) establishes clear, checkable criteria for when a b
 
 ---
 
-## Hierarchy Guidance
+## Jira Hierarchy Guidance
 
-**When looking at work from the bottom to the top of the hierarchy, only create issues as far up in the hierarchy as necessary to ensure that issues align with their intended purpose.**
+**Work from the bottom-up**: Start with the work item (Story, Task, Bug), then create parent issues only when they serve a real purpose for grouping, coordination, or visibility.
 
-### Hybrid Platforms Jira Hierarchy
+The GCP HCP team uses a 6-level Jira hierarchy within the broader Hybrid Platforms organization. For complete details on hierarchy structure, linking mechanisms, valid structures, and when to create parent issues, see:
 
-The GCP HCP team operates within the broader Hybrid Platforms organization hierarchy:
+**[Jira Hierarchy Documentation](./jira-hierarchy.md)**
 
-```
-Level 6: Strategic Goal (HATSTRAT)         [Roadmap/Strategy]
-   ↓ Parent Link field
-Level 5: Outcome (HPSTRAT)                 [Org-wide Strategy]
-   ↓ Parent Link field
-Level 4: Feature / Initiative (GCP)        [Business Unit] ← GCP team works here
-   ↓ Parent Link field
-Level 3: Epic (GCP or Eng Team Projects)   [Execution - Team]
-   ↓ Epic Link field
-Level 2: Story / Task / Bug (GCP)          [Execution - Individual Work]
-```
-
-**Important**: The GCP project operates at **Level 4** (Business Unit), where Features and Initiatives live.
-
-### Linking Mechanisms
-
-**Two different field types are used:**
-
-1. **Epic Link field** - Links Stories/Tasks/Bugs → Epics (Level 2 → Level 3)
-2. **Parent Link field** - Links everything else (Epics → Features → Outcomes → Strategic Goals)
-
-### Valid Structures for GCP HCP Team
-
-Work from the **bottom-up**. Start with the work item, then create parents only as far up as needed:
-
-- ✅ **Story alone** - Small bug fix or minor improvement (Level 2 only)
-- ✅ **Task alone** - Team process work, one-off documentation (Level 2 only)
-- ✅ **Stories → Epic** - Related Stories grouped under an Epic (Levels 2-3)
-- ✅ **Stories → Epic → Feature** - Capability spanning multiple Epics (Levels 2-4)
-- ✅ **Stories → Epic → Initiative** - Large initiative grouping Features (Levels 2-4)
-- ✅ **Epic alone** - Self-contained Epic without needing a Feature parent (Level 3 only)
-
-**Rarely used by GCP team:**
-- Stories → Epic → Feature → Outcome → Strategic Goal (full 6-level hierarchy)
-
-### When to Create Parent Issues
-
-**Create an Epic (Level 3) when:**
-- Multiple Stories/Tasks share a common technical goal or component
-- You need to track progress of related work as a cohesive unit
-- Work benefits from grouping but doesn't need strategic visibility
-
-**Create a Feature (Level 4) when:**
-- Multiple Epics need coordination and represent a broader capability
-- Work represents a major product capability visible to customers or stakeholders
-- Portfolio-level tracking is needed for quarterly/milestone planning
-
-**Create an Initiative (Level 4) when:**
-- Work represents a major strategic effort grouping multiple Features
-- Cross-team or cross-quarter coordination is required
-- Executive-level visibility and alignment is needed
-
-**Don't create Outcomes (Level 5) or Strategic Goals (Level 6)** - These are managed at the org-wide strategy level (HPSTRAT/HATSTRAT), not within GCP project.
-
-### Bottom-Up Principle
-
-**Don't create parent issues just to satisfy hierarchy.** If a Story stands alone and doesn't need an Epic, let it stand alone. If an Epic doesn't need a Feature parent, that's valid too.
-
-Only create parents when they serve a real purpose: grouping related work, enabling coordination, or providing necessary visibility.
+Key points:
+- ✅ Standalone Stories/Tasks are valid (no Epic needed for small, isolated work)
+- ✅ Use **Epic Link field** for Stories/Tasks/Bugs → Epics
+- ✅ Use **Parent Link field** for Epics → Features → Initiatives
+- ❌ Don't create parent issues just to satisfy hierarchy
 
 ---
 

@@ -35,7 +35,8 @@ spec:
               audience: gcp-hcp-konflux
   steps:
     - name: push-snapshot-to-gar
-      # TODO: Replace with released image reference once built by Konflux
+      # TODO: Pin to digest once Konflux-built image is available
+      # e.g. quay.io/redhat-services-prod/gcp-hcp-tenant/gcp-hcp-release-utils@sha256:...
       image: quay.io/jimd_openshift/release-service-utils-gcr:latest
       env:
         - name: GOOGLE_APPLICATION_CREDENTIALS
@@ -149,6 +150,9 @@ spec:
               if [[ -n "$git_sha" && "$git_sha" != "null" ]]; then
                 tag="${tag//\{\{ git_short_sha \}\}/${git_sha:0:7}}"
                 tag="${tag//\{\{ git_sha \}\}/$git_sha}"
+              elif [[ "$tag" == *"{{ git_sha }}"* || "$tag" == *"{{ git_short_sha }}"* ]]; then
+                echo "ERROR: Tag '$tag' contains git placeholders but source.git.revision is not set for component $NAME"
+                exit 1
               fi
               push_image "$NAME" "$CONTAINER_IMAGE" "$REPOSITORY" "$tag"
             done

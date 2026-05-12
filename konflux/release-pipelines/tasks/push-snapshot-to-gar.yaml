@@ -1,0 +1,156 @@
+---
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: push-snapshot-to-gar
+spec:
+  description: |-
+    Push snapshot images to Google Artifact Registry using cosign copy.
+    Authenticates to GAR via Workload Identity Federation using docker-credential-gcr.
+    Source images are pulled from Quay using select-oci-auth.
+  params:
+    - name: release
+      description: Namespaced name of release (namespace/name)
+      type: string
+    - name: releasePlan
+      description: Namespaced name of release plan (namespace/name)
+      type: string
+    - name: snapshot
+      description: Namespaced name of snapshot (namespace/name)
+      type: string
+    - name: skipAttestations
+      description: If true, skip copying attestations and signatures
+      type: string
+      default: "false"
+  volumes:
+    - name: wif-config
+      configMap:
+        name: gar-wif-config
+    - name: oidc-token
+      projected:
+        sources:
+          - serviceAccountToken:
+              path: oidc-token
+              expirationSeconds: 3600
+              audience: gcp-hcp-konflux
+  steps:
+    - name: push-snapshot-to-gar
+      # TODO: Replace with released image reference once built by Konflux
+      image: quay.io/jimd_openshift/release-service-utils-gcr:latest
+      env:
+        - name: GOOGLE_APPLICATION_CREDENTIALS
+          value: /var/run/secrets/wif/config.json
+      volumeMounts:
+        - name: wif-config
+          mountPath: /var/run/secrets/wif
+          readOnly: true
+        - name: oidc-token
+          mountPath: /var/run/secrets/tokens
+          readOnly: true
+      script: |
+        #!/usr/bin/env bash
+        set -eux
+
+        push_image() {
+          local NAME="$1"
+          local CONTAINER_IMAGE="$2"
+          local REPOSITORY="$3"
+          local TAG="$4"
+
+          # Source auth: use select-oci-auth for Quay (where the build image lives)
+          SOURCE_AUTH_FILE=$(mktemp)
+          SOURCE_REPO=${CONTAINER_IMAGE%%@sha256:*}
+          SOURCE_REGISTRY=${SOURCE_REPO%%/*}
+          select-oci-auth "$CONTAINER_IMAGE" | jq -c \
+            '.auths."'"$SOURCE_REPO"'" = .auths."'"$SOURCE_REGISTRY"'" | del(.auths."'"$SOURCE_REGISTRY"'")' > "$SOURCE_AUTH_FILE"
+
+          # Destination auth: use docker-credential-gcr via credHelpers
+          DEST_AUTH_DIR=$(mktemp -d)
+          cat > "$DEST_AUTH_DIR/config.json" << AUTHEOF
+        {
+          "credHelpers": {
+            "us-docker.pkg.dev": "gcr"
+          }
+        }
+        AUTHEOF
+
+          # Check if destination already has this digest
+          DEST_AUTH_FILE=$(mktemp)
+          DOCKER_CONFIG="$DEST_AUTH_DIR" docker-credential-gcr get <<< "us-docker.pkg.dev" > /dev/null 2>&1 || true
+          DESTINATION_DIGEST=$(DOCKER_CONFIG="$DEST_AUTH_DIR" oras resolve "$REPOSITORY:$TAG" 2>/dev/null || true)
+          ORIGIN_DIGEST=$(oras resolve --registry-config "$SOURCE_AUTH_FILE" "$CONTAINER_IMAGE")
+
+          if [[ "$DESTINATION_DIGEST" != "$ORIGIN_DIGEST" || -z "$DESTINATION_DIGEST" ]]; then
+            # Create combined auth: source from select-oci-auth + destination from credHelpers
+            DOCKER_CONFIG="$(mktemp -d)"
+            export DOCKER_CONFIG
+
+            # Merge source auth with destination credHelpers
+            jq -s '.[0] * .[1]' "$SOURCE_AUTH_FILE" "$DEST_AUTH_DIR/config.json" > "$DOCKER_CONFIG/config.json"
+
+            if [[ "$(params.skipAttestations)" == "true" ]]; then
+              skopeo copy --all "docker://$CONTAINER_IMAGE" "docker://$REPOSITORY:$TAG"
+            else
+              cosign copy -f "$CONTAINER_IMAGE" "$REPOSITORY:$TAG"
+            fi
+
+            echo "Pushed image $CONTAINER_IMAGE to $REPOSITORY:$TAG"
+          else
+            echo "Component push skipped (source digest exists at destination): $NAME"
+          fi
+        }
+
+        # Read snapshot spec
+        IFS='/' read -r SNAPSHOT_NAMESPACE SNAPSHOT_NAME <<< "$(params.snapshot)"
+        SNAPSHOT_SPEC=$(kubectl get snapshot "$SNAPSHOT_NAME" -n "$SNAPSHOT_NAMESPACE" \
+          -o jsonpath='{.spec}')
+
+        # Read release plan mapping
+        IFS='/' read -r RP_NAMESPACE RP_NAME <<< "$(params.releasePlan)"
+        RP_DATA=$(kubectl get releaseplan "$RP_NAME" -n "$RP_NAMESPACE" \
+          -o jsonpath='{.spec.data.mapping}')
+
+        NUM_COMPONENTS=$(jq '.components | length' <<< "$SNAPSHOT_SPEC")
+
+        if [[ $NUM_COMPONENTS == 0 ]]; then
+          echo "No components in snapshot."
+          exit 1
+        fi
+
+        for ((i = 0; i < NUM_COMPONENTS; i++)); do
+          COMPONENT=$(echo -n "$SNAPSHOT_SPEC" | jq -c --argjson i "$i" '.components[$i]')
+          NAME=$(jq -r '.name' <<< "$COMPONENT")
+          COMPONENT_DESTINATION=$(echo -n "$RP_DATA" | jq -c --arg c "$NAME" '.components[] | select(.name == $c)')
+
+          if [[ "$COMPONENT_DESTINATION" == "" ]]; then
+            echo "No mapping for ${NAME}. Skipping."
+            continue
+          fi
+
+          CONTAINER_IMAGE=$(jq -r '.containerImage' <<< "$COMPONENT")
+          REPOSITORIES=$(jq -r '.repository // .repositories[].url' <<< "$COMPONENT_DESTINATION")
+
+          for REPOSITORY in ${REPOSITORIES}; do
+            git_sha=$(jq -r '.source.git.revision // ""' <<< "$COMPONENT")
+            if jq -e '.repositories' <<< "$COMPONENT_DESTINATION" > /dev/null 2>&1; then
+              repo_tags=$(jq -r --arg repo "$REPOSITORY" \
+                '.repositories[] | select(.url == $repo) | .tags // []' \
+                <<< "$COMPONENT_DESTINATION")
+            else
+              repo_tags=$(jq '.tags // []' <<< "$COMPONENT_DESTINATION")
+            fi
+            all_tags=$(jq -n \
+              --argjson d "$(jq '.defaults.tags//[]' <<< "$RP_DATA")" \
+              --argjson t "$repo_tags" \
+              '$d+$t|unique')
+
+            IFS=$'\n'
+            for tag in $(jq -r '.[]' <<< "$all_tags"); do
+              if [[ -n "$git_sha" && "$git_sha" != "null" ]]; then
+                tag="${tag//\{\{ git_short_sha \}\}/${git_sha:0:7}}"
+                tag="${tag//\{\{ git_sha \}\}/$git_sha}"
+              fi
+              push_image "$NAME" "$CONTAINER_IMAGE" "$REPOSITORY" "$tag"
+            done
+          done
+        done

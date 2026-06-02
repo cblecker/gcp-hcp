@@ -61,6 +61,19 @@ Images are categorized into three tiers based on ownership, each with a differen
 
 All cache types are consumed identically: MutatingAdmissionPolicy rewrites source URLs to the regional cache at pod admission time. A CEL mutation is configured per source registry prefix. Adding a new upstream registry requires creating a new cache repo and adding a `sourceRepos` entry to the image rewriter chart.
 
+### Supply Chain Security
+
+The pull-through caches are catch-all proxies — they cache any image from their upstream registry on first pull. This is intentional. Restricting caches to an enumerated list of approved images would break on every OCP version bump (new image digests), operator update, or tooling change, creating a maintenance burden that defeats the purpose of caching.
+
+Supply chain security should be enforced at the **workload admission layer**, not the cache layer. The cache is a transparent optimization — it does not grant the ability to run arbitrary images, it only caches what is already pulled. Controlling what runs on the cluster is a workload policy concern (RBAC, PodSecurity, namespace policies, or a future image admission policy) rather than a registry concern.
+
+Image provenance for Tier 1 and 2 images is maintained via cosign attestations preserved during the Konflux-to-GAR publish step, supporting future Binary Authorization enforcement.
+
+### Known Limitations
+
+- **Cannot chain pull-throughs**: A GAR remote repository can only proxy from a Docker-type registry, not from another remote or pull-through repository. This is why Tier 1 and 2 images are published directly to the commons GAR standard repository, not pulled through from quay.io.
+- **No virtual repository layer**: The Google-recommended pattern combines remote + virtual repositories with priority-based resolution. Our architecture achieves the same result using MutatingAdmissionPolicy to rewrite image URLs, which is more flexible (works at the Kubernetes layer, not the registry layer) and avoids the complexity of maintaining virtual repo priority policies.
+
 ### Regional Cache Architecture
 
 Each region project hosts pull-through cache repositories — one for our own images and one per upstream registry that needs caching:
@@ -248,6 +261,7 @@ No infrastructure changes are needed — the pull-through cache, IAM bindings, a
 
 ### Cost:
 
+* **Storage is negligible**: A single hosted control plane caches ~2.2 GB of OCP images (measured). Images are deduplicated per OCP version — 50 HCPs on the same version share the same cached layers. At GAR pricing ($0.10/GB/month), even 5 concurrent OCP versions costs ~$1.10/month per region. Total cache cost including all upstream registries is estimated under $2/month per region.
 * Regional cache storage cost is bounded by the 365-day cleanup policy
 * Cross-region egress from commons GAR is reduced to first-pull-only per region per image tag
 * The `gcp-hcp-commons` project uses multi-region (`us`) GAR, which has higher storage cost but lower egress to US-based caches

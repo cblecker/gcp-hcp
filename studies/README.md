@@ -53,6 +53,11 @@ Studies should include:
 
 ## Active Studies
 
+### Datastore Transport: Replacing Maestro
+**File**: `datastore-transport.md`
+**Status**: Complete
+**Topic**: Evaluating GCP-native datastore options (Firestore, Spanner, Cloud SQL, Bigtable, AlloyDB, GCS) to replace Maestro as transport between region and management clusters
+
 ### Federated Authentication from OpenShift/ROSA to GCP
 **File**: `rosa-to-gcp-wif.md`
 **Status**: Validated with working example

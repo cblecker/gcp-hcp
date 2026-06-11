@@ -1,5 +1,7 @@
 Transport Layer: Maestro for Regional-Management Cluster Communication
 
+> **Status**: Superseded by [Use Firestore as a Database-Backed Transport to Replace Maestro](datastore-transport.md) (2026-06-05)
+
 ***Scope***: GCP-HCP
 
 **Date**: 2025-09-30

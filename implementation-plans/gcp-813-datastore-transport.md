@@ -14,32 +14,31 @@ Design decision: [`design-decisions/datastore-transport.md`](../design-decisions
 
 ## Architecture Overview
 
-```
+```text
 CLM (region cluster)                    MC (management cluster)
 ┌─────────────────────┐                 ┌──────────────────────┐
-│ CLM API             │                 │ Agent (cmd/agent)    │
-│   ↓ Pub/Sub event   │                 │   ↑ Firestore        │
-│ Adapter             │                 │   │ listener /specs  │
-│   ├─ write /specs ──┼── Firestore ──→ │   │                  │
-│   │                 │   (per-MC DB)   │   ↓ K8s SSA          │
-│   └─ read /status ←─┼── Firestore ──← │   write /status     │
-│   ↓                 │                 └──────────────────────┘
-│ HyperFleet API      │
-│ (report status)     │
-└─────────────────────┘
+│ CLM                 │                 │ Agent (cmd/agent)    │
+│   ↓ Pub/Sub (specs) │                 │   ↑ specs-db         │
+│ Adapter             │                 │   │ listener          │
+│   ├─ write specs-db ─┼── Firestore ──→ │   │                  │
+│   │                  │   (per-MC)     │   ↓ K8s SSA          │
+│   └─ read status-db ←┼── Firestore ──← │   write status-db   │
+│   ↓ Pub/Sub (status) │                 └──────────────────────┘
+│ CLM                  │
+└──────────────────────┘
 ```
 
 **Key patterns:**
 - Adapter remains event-driven: CLM events trigger processing, adapter reads status from Firestore on-demand during event execution (same pattern as Maestro gRPC reads today)
-- Agent uses Firestore real-time listener on `/specs` for low-latency spec delivery
-- Single Firestore DB per MC, two collections: `/specs`, `/status`
+- Agent uses Firestore real-time listener on `specs-db` for low-latency spec delivery
+- Two Firestore databases per MC: `specs` (adapter writes, agent reads) and `status` (agent writes, adapter reads) — IAM-enforced directional isolation
 - Shared Go interfaces compatible with ARO kube-applier's `KubeApplierDBClient` for eventual convergence
 
 ## Package Layout
 
-All code in hyperfleet-adapter repo, well-separated for future extraction:
+All code in CLM adapter repo ([hyperfleet-adapter](https://github.com/openshift/hyperfleet-adapter)), well-separated for future extraction:
 
-```
+```text
 pkg/
 └── dbclient/                        # Shared interfaces (future standalone module)
     ├── interfaces.go                # DB client interfaces (KubeApplierDBClient-compatible)
@@ -74,40 +73,84 @@ cmd/
 
 ## Document Model
 
-Compatible with ARO kube-applier desire types.
+Aligned with ARO kube-applier desire types. Reusing the same schema enables shared Go interfaces and future code convergence with ARO-HCP.
 
-**`/specs/{resourceKey}`** — CLM writes, agent reads:
+**Document IDs**: Deterministic UUID v5 assigned by the CLM adapter. The UUID is derived from a fixed namespace UUID and the string `{taskKey}/{group}/{version}/{resource}/{namespace}/{name}`, where `taskKey` is a stable identifier from the adapter task config (exact field name TBD — must be immutable across restarts/redeployments). This gives:
+- **Natural idempotency**: crash-and-retry computes the same ID, so create returns conflict if already exists
+- **Multiple desires per K8s object**: different `taskKey` values (e.g., different field managers) produce different UUIDs for the same resource
+- **Deterministic**: same as ARO's approach (`uuid.NewSHA1(namespaceUUID, []byte(input))`)
+
+### Database Layout
+
+Each MC has **two Firestore databases** in its GCP project, providing IAM-enforced directional isolation:
+
+| Database | CLM Adapter | Agent |
+|----------|-------------|-------|
+| `specs` | `datastore.user` (read/write) | `datastore.viewer` (read only) |
+| `status` | `datastore.viewer` (read only) | `datastore.user` (read/write) |
+
+This ensures the agent cannot write specs and the adapter cannot write status — enforced by IAM, not application code.
+
+> **Simplification option**: A single database per MC with application-enforced directional isolation is possible. This halves the number of databases and connections but loses IAM-enforced direction. Both the adapter and agent would have `datastore.user` on the single database, and write direction would be enforced in code only.
+
+**Adapter side**: manages 2N Firestore connections for N MCs (one `specs` + one `status` per MC, cross-project). The `DBClient` factory returns a `(specsDB, statusDB)` pair per MC.
+
+**Agent side**: 2 local database connections in its own project (simple, always the same pair).
+
+### Spec Documents (`specs` database)
+
+Each desire document contains a typed `Spec` following ARO's structure:
+
 ```json
 {
-  "desireType": "apply|delete|read",
-  "group": "hypershift.openshift.io",
-  "version": "v1beta1",
-  "resource": "hostedclusters",
-  "namespace": "clusters",
-  "name": "my-cluster",
-  "generation": 42,
-  "manifest": "<raw K8s resource JSON>",
+  "spec": {
+    "desireType": "apply|delete|read",
+    "targetItem": {
+      "group": "hypershift.openshift.io",
+      "version": "v1beta1",
+      "resource": "hostedclusters",
+      "namespace": "clusters",
+      "name": "my-cluster"
+    },
+    "kubeContent": "<raw K8s resource JSON (RawExtension)>",
+    "generation": 42
+  },
   "updatedAt": "2026-06-05T..."
 }
 ```
 
-**`/status/{resourceKey}`** — agent writes, CLM reads:
+For cluster-scoped resources, `namespace` is empty.
+
+### Status Documents (`status` database)
+
+Status contains `[]metav1.Condition` reporting operation outcome. ApplyDesire and DeleteDesire status reports whether the operation succeeded (`Successful`, `Degraded`) — it does NOT include the full K8s object status. To retrieve the actual K8s resource (e.g., HostedCluster `.status`), the adapter creates a ReadDesire and reads `kubeContent` from the ReadDesire status.
+
+**ApplyDesire / DeleteDesire status:**
 ```json
 {
-  "group": "hypershift.openshift.io",
-  "version": "v1beta1",
-  "resource": "hostedclusters",
-  "namespace": "clusters",
-  "name": "my-cluster",
-  "generation": 42,
-  "conditions": [...],
-  "status": "<K8s resource .status JSON>",
+  "status": {
+    "conditions": [
+      {"type": "Successful", "status": "True", "reason": "Applied", ...},
+      {"type": "Degraded", "status": "False", ...}
+    ]
+  },
   "lastAppliedAt": "2026-06-05T...",
   "lastObservedAt": "2026-06-05T..."
 }
 ```
 
-**`resourceKey` format**: `{group}/{version}/{resource}/{namespace}/{name}` (e.g., `hypershift.openshift.io/v1beta1/hostedclusters/clusters/my-cluster`). Slashes are safe in Firestore document IDs.
+**ReadDesire status** — includes the full K8s object:
+```json
+{
+  "status": {
+    "conditions": [
+      {"type": "Successful", "status": "True", ...}
+    ],
+    "kubeContent": "<full K8s resource JSON including .status (RawExtension)>"
+  },
+  "lastObservedAt": "2026-06-05T..."
+}
+```
 
 ---
 
@@ -118,7 +161,7 @@ Compatible with ARO kube-applier desire types.
 ### Deliverables
 
 1. **Go interfaces** (`pkg/dbclient/interfaces.go`):
-   - `DBClient` — per-MC database handle (factory: project ID + database name → client)
+   - `MCDatabasePair` — per-MC handle wrapping a `specsDB` and `statusDB` (factory: project ID → pair)
    - `DesireCRUD[T Desire]` — typed Get/Create/Replace/Delete for desire documents
    - `DesireLister[T Desire]` — paginated list with continuation cursor
    - `StatusWriter` — optimistic read-mutate-replace for status documents
@@ -126,16 +169,16 @@ Compatible with ARO kube-applier desire types.
    - Interface signatures compatible with ARO's `KubeApplierDBClient` stack
 
 2. **Desire types** (`pkg/dbclient/types.go`):
-   - `ApplyDesire`, `DeleteDesire`, `ReadDesire` structs
-   - `DesireStatus` struct for status documents
+   - `ApplyDesire`, `DeleteDesire`, `ReadDesire` structs with typed `Spec` containing `TargetItem` (ResourceReference), `KubeContent` (`*RawExtension`), matching ARO's schema
+   - `DesireStatus` struct with `[]metav1.Condition` for operation outcome
    - `ChangeEvent` struct for listener callbacks (type: added/modified/removed, document)
 
 3. **Firestore implementation** (`pkg/dbclient/firestore/`):
-   - `NewClient(ctx, projectID, databaseID)` — uses Application Default Credentials (Workload Identity)
+   - `NewMCDatabasePair(ctx, projectID)` — creates clients for `specs` and `status` databases using Application Default Credentials (Workload Identity)
    - CRUD: map to Firestore `Set`/`Get`/`Delete` with `precondition: {updateTime}` for optimistic concurrency
    - List: `Collection.Documents()` with `StartAfter` cursor for pagination
    - Listener: `Collection.Snapshots.Listen()` wrapper with reconnection handling
-   - `Close()` for cleanup
+   - `Close()` for cleanup of both database connections
 
 4. **Integration tests** with Firestore emulator:
    - CRUD round-trip
@@ -151,7 +194,7 @@ Compatible with ARO kube-applier desire types.
 - [ ] Interfaces compile without importing ARO code but are structurally compatible
 - [ ] Firestore CRUD works against emulator
 - [ ] Optimistic concurrency rejects stale writes
-- [ ] Listener delivers add/modify/remove events within 1s
+- [ ] Listener delivers add/modify/remove events (target: p99 < 1s, internal goal, not SLA)
 - [ ] `go doc` shows clean, documented API surface
 
 ---
@@ -163,13 +206,14 @@ Compatible with ARO kube-applier desire types.
 ### Deliverables
 
 1. **TransportClient implementation** (`internal/firestoretransport/client.go`):
-   - `ApplyResource(manifest, opts, target)`: decode manifest → extract GVR/namespace/name/generation → write `ApplyDesire` to `/specs/{key}` (or `DeleteDesire` if lifecycle.delete triggered)
-   - `GetResource(gvk, namespace, name, target)`: read from `/status/{key}`, return as `*unstructured.Unstructured` (matching how Maestro client returns ManifestWork with status)
-   - `DiscoverResources(gvk, discovery, target)`: query `/status` collection, filter by discovery criteria, return as `UnstructuredList`
-   - `DeleteResource(gvk, namespace, name, opts, target)`: delete from `/specs/{key}` (or write DeleteDesire depending on pattern)
+   - `ApplyResource(manifest, opts, target)`: decode manifest → extract GVR/namespace/name/generation → compute UUID v5 → write `ApplyDesire` to `specs-db` (or `DeleteDesire` if lifecycle.delete triggered)
+   - `GetResource(gvk, namespace, name, target)`: write `ReadDesire` to `specs-db`, read `ReadDesireStatus.kubeContent` from `status-db`, return as `*unstructured.Unstructured`
+   - `GetApplyStatus(gvk, namespace, name, target)`: read operator conditions from `status-db` (Successful/Degraded — does NOT include K8s object status)
+   - `DiscoverResources(gvk, discovery, target)`: query `status-db`, filter by discovery criteria, return as `UnstructuredList`
+   - `DeleteResource(gvk, namespace, name, opts, target)`: write `DeleteDesire` to `specs-db`
 
 2. **Transport context** (`internal/firestoretransport/context.go`):
-   - `FirestoreTransportContext` struct: `ProjectID`, `DatabaseID` (equivalent to Maestro's `ConsumerName`)
+   - `FirestoreTransportContext` struct: `ProjectID` (equivalent of Maestro's `ConsumerName`; database names are fixed: `specs`, `status`)
    - Resolved from task config params (e.g., `target_project: '{{ .mcProjectId }}'`)
 
 3. **Config integration** (`internal/configloader/`):
@@ -185,10 +229,7 @@ Compatible with ARO kube-applier desire types.
 
 ### Key Design Decisions
 
-- **Status document → Unstructured mapping**: The adapter's post-action CEL expressions expect `resources.{name}.status.conditions[...]`. The Firestore status document must be mapped to an Unstructured object that matches this shape. Two approaches:
-  - (a) Store full K8s resource JSON in status doc, return it as-is (simplest, most compatible)
-  - (b) Store structured status fields, map to Unstructured on read (more storage-efficient)
-  - **Recommend (a)** for compatibility with existing CEL expressions in task configs
+- **Status semantics by desire type**: ApplyDesire/DeleteDesire status contains only operator conditions (`Successful`, `Degraded`) — it answers "did the operation succeed?", not "what does the K8s object look like?". ReadDesire status includes the full K8s resource in `kubeContent`. The adapter's post-action CEL expressions (`resources.{name}.status.conditions[...]`) evaluate against the operator conditions for apply/delete, or against the full object status via ReadDesire when needed.
 
 - **Generation handling**: Reuse `manifest.CompareGenerations()` — extract generation from rendered manifest, compare with generation stored in Firestore spec document
 
@@ -245,9 +286,13 @@ Compatible with ARO kube-applier desire types.
 
 - **Work queue vs. direct processing**: Use client-go's `workqueue.RateLimitingInterface` for deduplication, rate limiting, and retry. Listener events enqueue keys; workers dequeue and process. Standard K8s controller pattern.
 
+- **Leader election**: Required for HA. Running multiple agent replicas without leader election causes SSA field manager conflicts. Use `client-go/tools/leaderelection` with a Lease object. Only the leader processes the work queue; standby replicas maintain Firestore listener connections for fast failover.
+
+- **Cooldown gates**: Firestore listeners fire events for all writes — including the agent's own status writes. Without a cooldown gate, this creates a hot loop: write status → listener fires → re-reconcile → write same status → repeat. Port the cooldown gate pattern from ARO's `controllerutils/cooldown.go`: after writing status, suppress reconciliation for that key for a short window (e.g., 5s).
+
 - **Resync interval**: Default 5 minutes. Full spec list + diff against applied state. Catches: missed listener events, agent restarts, Firestore reconnections.
 
-- **Concurrency**: Single worker goroutine initially. Multiple workers possible but risks ordering issues for related resources. Start simple.
+- **Concurrency**: Start with configurable worker count, default 3. Work queue provides deduplication and rate limiting. If specific ordering constraints emerge for related resources, reduce to 1 via configuration.
 
 ### Acceptance Criteria
 - [ ] Agent applies K8s resource within 5s of spec write to Firestore
@@ -257,6 +302,8 @@ Compatible with ARO kube-applier desire types.
 - [ ] Periodic resync catches specs missed during disconnection
 - [ ] Agent cannot access another MC's Firestore database (IAM test)
 - [ ] Health probe reports unhealthy when Firestore connection lost
+- [ ] Leader election prevents concurrent SSA from multiple replicas
+- [ ] Cooldown gate prevents hot loop from agent's own status writes
 
 ---
 
@@ -274,7 +321,7 @@ Compatible with ARO kube-applier desire types.
    - Write spec doc → agent applies to envtest K8s → verify status doc
 
 3. **Full E2E** (adapter + agent + Firestore emulator + envtest):
-   - CLM event → adapter writes spec → agent applies → agent writes status → adapter reads status → reports to HyperFleet API
+   - CLM event → adapter writes spec → agent applies → agent writes status → adapter reads status → reports status to CLM via Pub/Sub
    - Latency: spec write to status availability < 60s (acceptance criterion from epic)
 
 4. **CLM resync**: adapter writes all specs to empty Firestore DB on startup equivalent (regular sync model)
@@ -285,7 +332,7 @@ Compatible with ARO kube-applier desire types.
 ### Test Infrastructure
 - Firestore emulator via testcontainers (matches existing integration test pattern with `make test-integration`)
 - K8s envtest for agent's K8s operations
-- Mock HyperFleet API for adapter post-action verification
+- Mock CLM API for adapter post-action verification
 
 ---
 
@@ -304,13 +351,13 @@ Compatible with ARO kube-applier desire types.
 
 2. **Document bundling**: ARO kube-applier uses a **flat model — one desire per K8s resource**. Each `ApplyDesire`/`DeleteDesire`/`ReadDesire` contains exactly one resource's spec + GVR identifier. **For Firestore: one spec doc and one status doc per K8s resource. No bundling.** This replaces the Maestro `nested_discoveries` pattern — multi-resource status aggregation uses collection queries with label/selector filtering instead.
 
-3. **Large document handling**: Firestore does not compress documents automatically. Typical K8s manifests (5-50KB) are well under the 1 MiB limit — **store raw JSON directly, no compression needed**. For occasional large manifests (200-500KB), gzip into a `bytes` field with indexing disabled. GCS reference pattern is overkill at this scale. Validate manifest size before write; log warning for >500KB; reject >900KB.
+3. **Document ID format**: Deterministic UUID v5 assigned by CLM adapter: `uuid.NewSHA1(namespaceUUID, "{taskKey}/{GVR}/{namespace}/{name}")`. **Deterministic IDs give natural idempotency** (crash-and-retry computes same ID) and **allow multiple desires per K8s object** (different `taskKey` → different UUID). Matches ARO's approach. GVR/namespace/name also stored as document fields for queries. Cluster-scoped resources use empty `namespace`.
+
+4. **Large document handling**: Firestore does not compress documents automatically. Typical K8s manifests (5-50KB) are well under the 1 MiB limit — **store raw JSON directly, no compression needed**. For occasional large manifests (200-500KB), gzip into a `bytes` field with indexing disabled. GCS reference pattern is overkill at this scale. Validate manifest size before write; log warning for >500KB; reject >900KB.
 
 ## Open Questions
 
-1. **Document ID format**: Proposed `{group}/{version}/{resource}/{namespace}/{name}`. Slashes are safe in Firestore IDs. Alternative: dot-separated or hash-based. Need to verify no edge cases with long IDs (max 1500 bytes).
-
-2. **Firestore emulator in CI**: Current CI uses Konflux/Tekton. Need testcontainers image for Firestore emulator, or sidecar container in pipeline. Check if `google/cloud-sdk` image includes emulator.
+1. **Firestore emulator in CI**: Current CI uses Konflux/Tekton. Need testcontainers image for Firestore emulator, or sidecar container in pipeline. Check if `google/cloud-sdk` image includes emulator.
 
 3. **Unified applier vision**: At what point do we propose sharing code with ARO kube-applier? Options:
    - (a) After Phase 1 — share `pkg/dbclient/` interfaces, propose Firestore backend to kube-applier
@@ -333,7 +380,7 @@ Compatible with ARO kube-applier desire types.
 
 ## Phase Dependencies
 
-```
+```text
 Phase 1 (pkg/dbclient)
   ├──→ Phase 2 (Adapter TransportClient)
   └──→ Phase 3 (Agent)

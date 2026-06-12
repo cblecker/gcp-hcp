@@ -74,7 +74,7 @@ Replace Maestro with Cloud Firestore (Native mode, regional) as the transport la
 
 ### Negative
 
-* Within a single MC database, spec vs. status read/write direction cannot be IAM-enforced (only database-level granularity) — directional isolation is application-enforced (see Cross-Cutting Concerns / Security)
+* Two Firestore databases per MC (specs + status) doubles the number of databases and connections compared to a single-database model
 * Firestore is schemaless — no DDL-enforced schema validation; validation must be in application code
 * 1 MiB document size limit could be a constraint for very large K8s resources
 * IAM role changes have up to 5-minute cache lag
@@ -83,17 +83,17 @@ Replace Maestro with Cloud Firestore (Native mode, regional) as the transport la
 
 ### Reliability:
 
-* **Scalability**: Firestore scales automatically with no provisioned capacity. Each MC database is independent. The ceiling is the 100 DBs/project limit, addressable via quota increase or project sharding.
+* **Scalability**: Firestore scales automatically with no provisioned capacity. Each MC has two independent databases in its own GCP project (2 DBs per project, well under the 100 DBs/project limit).
 * **Observability**: Firestore provides built-in metrics in Cloud Monitoring (read/write counts, latency, error rates) per database. Custom metrics can be added in the adapter and agent for per-resource-type tracking.
 * **Resiliency**: 99.99% SLA for regional Firestore. Transparent zone failover within the region. Data survives regional outage on Google's storage infrastructure and is automatically available when the region recovers. In case of MC project deletion/rebuild, CLM resyncs all specs via the adapter's regular sync model — no manual data recovery needed.
 
 ### Security:
 
-* Each MC agent's Workload Identity GSA is granted `roles/datastore.user` on only its own Firestore database in the MC project — lateral movement between MCs is prevented by IAM
-* CLM's GSA is granted cross-project access to each MC's Firestore database — this is a privileged role; its credentials must be protected accordingly
+* Each MC agent's Workload Identity GSA is granted `roles/datastore.viewer` on `specs` database (read only) and `roles/datastore.user` on `status` database (read/write) — lateral movement between MCs is prevented by IAM
+* CLM adapter's GSA is granted cross-project `roles/datastore.user` on `specs` database and `roles/datastore.viewer` on `status` database per MC — directional isolation is IAM-enforced
 * Cross-project IAM bindings are standard GCP IAM — no VPC peering, no network-level trust required
 * Firestore data is encrypted at rest by default (Google-managed keys); CMEK is available if required
-* **Spec/status directional isolation**: Firestore IAM operates at database-level only — within one database, both CLM and the MC agent have `roles/datastore.user` (read+write on all collections). Spec vs. status write direction is application-enforced. If strict directional isolation is required, two Firestore databases per MC can be used (one for specs, one for status), each with different IAM grants (CLM: writer on specs DB, reader on status DB; agent: reader on specs DB, writer on status DB)
+* **Spec/status directional isolation**: IAM-enforced via two databases per MC. The adapter cannot write status and the agent cannot write specs. A single-database simplification is possible but reduces directional isolation to application-level enforcement only
 
 ### Performance:
 

@@ -36,8 +36,8 @@ These are intentional differences driven by the underlying cloud platform.
 | Spec/status co-location | Same container, same document | Separate databases with IAM-enforced directional isolation |
 | Document IDs | ARM resource IDs (`subscriptions/{sub}/resourceGroups/...`) | Deterministic UUID v5 from `{taskKey}/{group}/{version}/{resource}/{namespace}/{name}` |
 | Change notification | Cosmos change feed | Firestore real-time snapshot listeners (persistent gRPC streams) |
-| Authentication | Cosmos credentials scoped per container | GKE Workload Identity Federation, no static credentials |
-| Partition / isolation | Per-container credentials; partition key = MC name | Per-database IAM conditions at the Firestore database level |
+| Authentication | Azure Workload Identity (credentials scoped per container) | GKE Workload Identity Federation (IAM scoped per database) |
+| Partition / isolation | Per-container credential scoping; partition key = MC name | Per-database IAM conditions at the Firestore database level |
 
 ### Key architectural difference: dual-database model
 

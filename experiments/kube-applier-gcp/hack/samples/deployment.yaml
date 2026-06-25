@@ -15,6 +15,7 @@ spec:
       labels:
         app: kube-applier-test
     spec:
+      automountServiceAccountToken: false
       securityContext:
         runAsNonRoot: true
         seccompProfile:

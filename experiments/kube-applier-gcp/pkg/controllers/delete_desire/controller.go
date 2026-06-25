@@ -198,12 +198,15 @@ func (c *DeleteDesireController) SyncOnce(ctx context.Context, key keys.DeleteDe
 		return nil
 	}
 
-	mutate, _ := c.evaluate(ctx, desire)
-	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.DeleteDesire) {
+	mutate, syncErr := c.evaluate(ctx, desire)
+
+	statusErr := c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.DeleteDesire) {
 		d.SetDocumentID(desire.GetDocumentID())
 		d.Status.ObservedDesireUpdateTime = desire.GetUpdateTime()
 		mutate(d)
 	})
+
+	return errors.Join(syncErr, statusErr)
 }
 
 // evaluate runs the state machine for one DeleteDesire.

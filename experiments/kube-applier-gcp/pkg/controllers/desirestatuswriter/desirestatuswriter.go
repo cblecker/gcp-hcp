@@ -99,6 +99,9 @@ func (w *writer[T, K, PT]) UpdateStatus(ctx context.Context, key K, mutate Mutat
 	}
 
 	if err := w.replacer.Replace(ctx, desired); err != nil {
+		if database.IsPreconditionFailedError(err) {
+			return nil
+		}
 		return fmt.Errorf("replace status for %v: %w", key, err)
 	}
 	return nil

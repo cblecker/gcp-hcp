@@ -383,8 +383,11 @@ func TestSyncOnce_PreCheckError_SetsConditions(t *testing.T) {
 	}
 
 	key := mustKey(t, created)
-	if err := c.SyncOnce(ctx, key); err != nil {
-		t.Fatalf("SyncOnce: %v", err)
+	syncErr := c.SyncOnce(ctx, key)
+
+	var preCheck *conditions.PreCheckError
+	if !errors.As(syncErr, &preCheck) {
+		t.Fatalf("expected PreCheckError from SyncOnce, got: %v", syncErr)
 	}
 
 	updated, err := statusCRUD.Get(ctx, created.DocumentID)

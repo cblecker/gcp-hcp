@@ -217,13 +217,15 @@ func (c *ApplyDesireController) SyncOnce(ctx context.Context, key keys.ApplyDesi
 
 	appliedGen, syncErr := c.applyDesired(ctx, desire)
 
-	return c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
+	statusErr := c.writer.UpdateStatus(ctx, key, func(d *kubeapplier.ApplyDesire) {
 		d.SetDocumentID(desire.GetDocumentID())
 		d.Status.ObservedDesireUpdateTime = desire.GetUpdateTime()
 		d.Status.AppliedResourceGeneration = appliedGen
 		conditions.SetSuccessful(&d.Status.Conditions, syncErr)
 		conditions.SetDegraded(&d.Status.Conditions, classifyAsDegraded(syncErr))
 	})
+
+	return errors.Join(syncErr, statusErr)
 }
 
 func (c *ApplyDesireController) applyDesired(ctx context.Context, d *kubeapplier.ApplyDesire) (int64, error) {

@@ -91,13 +91,6 @@ The Go interface stack is intentionally compatible:
 
 ---
 
-## Tense and Maturity
-
-- **ARO HCP**: Partly aspirational ("will be", "will use"), suggesting the readme was written as a design spec before full implementation.
-- **GCP HCP**: Present tense describing implemented and tested behavior. The code, tests, and readme are consistent.
-
----
-
 ## Recommended Discussion Topics
 
 1. **`ObservedDesireUpdateTime` and `AppliedResourceGeneration`**: Should these be adopted as shared interface fields across both platforms? Does ARO HCP track an equivalent of `ObservedDesireUpdateTime` — and if so, under what field name? Does it track `AppliedResourceGeneration` to confirm a spec has been applied and the K8s object has advanced to the expected generation?

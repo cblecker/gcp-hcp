@@ -111,6 +111,18 @@ func (g *Generator) Generate() error {
 		return err
 	}
 
+	// Pre-scan: collect +orlop:public package markers across all files
+	// so that analyzeFile doesn't skip files sorted before groupversion_info.go.
+	for _, path := range files {
+		f, err := parser.ParseFile(g.fset, path, nil, parser.ParseComments)
+		if err != nil {
+			return fmt.Errorf("pre-scanning %s: %w", path, err)
+		}
+		if g.hasPackagePublicMarker(f) {
+			g.publicPackages[filepath.Dir(path)] = true
+		}
+	}
+
 	for _, path := range files {
 		if err := g.analyzeFile(path); err != nil {
 			return fmt.Errorf("analyzing %s: %w", path, err)
@@ -180,14 +192,7 @@ func (g *Generator) analyzeFile(inputPath string) error {
 
 	pkgDir := filepath.Dir(inputPath)
 
-	// Track if this package has +orlop:public marker
-	if g.hasPackagePublicMarker(file) {
-		g.publicPackages[pkgDir] = true
-	}
-
-	// Check if package has been marked public (by any file in the package)
 	if !g.publicPackages[pkgDir] {
-		// Skip this file if package hasn't been marked public yet
 		return nil
 	}
 

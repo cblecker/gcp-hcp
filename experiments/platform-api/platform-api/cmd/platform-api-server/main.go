@@ -10,6 +10,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/go-logr/stdr"
 	"github.com/thetechnick/orlop/pkg/apiserver"
 )
 
@@ -28,6 +29,8 @@ func main() {
 	flag.BoolVar(&enablePublic, "enable-public-api", true, "enable public API server")
 	flag.StringVar(&corsOrigins, "cors-origins", "*", "comma-separated list of allowed CORS origins")
 	flag.Parse()
+
+	logger := stdr.New(nil)
 
 	// Parse CORS origins
 	origins := []string{}
@@ -53,6 +56,7 @@ func main() {
 			Scheme:    getPublicScheme(),
 		},
 		CORSOrigins: origins,
+		Logger:      logger,
 	}
 
 	server, err := apiserver.New(opts)
